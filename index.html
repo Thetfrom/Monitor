@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TAMEYO Monitor</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.2.0/dist/tabler-icons.min.css" />
+</head>
+<body>
+
+  <!-- S-01: Loading / Auth Gate -->
+  <div id="screen-loading">
+    <div class="loading-logo">
+      <img id="loading-logo-img" src="" alt="TAMEYO Monitor" />
+    </div>
+    <div class="loading-dots">
+      <span></span><span></span><span></span>
+    </div>
+    <div class="loading-text">Connecting to your account...</div>
+  </div>
+
+  <!-- S-02: Error — no account found -->
+  <div id="screen-no-account" class="error-screen hidden">
+    <img id="no-account-logo" src="" alt="TAMEYO Monitor" class="logo" />
+    <h2>We couldn't find a Monitor account for this email.</h2>
+    <p>Check that you're signed into the correct Wix member account, or contact support.</p>
+    <a href="mailto:service@tameyogroup.com" class="btn-primary">Contact Support</a>
+    <a href="https://www.tameyogroup.com/monitor" class="link-secondary" target="_blank">Learn about TAMEYO Monitor</a>
+  </div>
+
+  <!-- S-03: Error — session expired -->
+  <div id="screen-session-expired" class="error-screen hidden">
+    <img id="expired-logo" src="" alt="TAMEYO Monitor" class="logo" />
+    <h2>Your session has expired. Please sign in again.</h2>
+    <p>Your session timed out. Click below to sign in again through your Wix member account.</p>
+    <button class="btn-primary" id="btn-reauth">Sign in again</button>
+  </div>
+
+  <!-- Main App Shell (authenticated) -->
+  <div id="app-shell" class="hidden">
+
+    <!-- Global Nav -->
+    <nav id="main-nav">
+      <div class="nav-logo">
+        <img id="nav-logo-img" src="" alt="TAMEYO Monitor" />
+      </div>
+
+      <div class="nav-tabs" id="nav-tabs">
+        <!-- rendered by JS -->
+      </div>
+
+      <div class="nav-right">
+        <span class="nav-business-name" id="nav-business-name"></span>
+        <div class="streak-pill" id="streak-pill">
+          <i class="ti ti-flame"></i>
+          <span id="streak-label">Month 1</span>
+        </div>
+        <span class="plan-badge" id="plan-badge"></span>
+        <button class="nav-upgrade-btn hidden" id="nav-upgrade-btn">Upgrade ↑</button>
+      </div>
+    </nav>
+
+    <!-- Page Content -->
+    <div id="page-content">
+
+      <!-- S-17: Onboarding first visit -->
+      <div id="screen-onboarding" class="hidden">
+        <div class="onboarding-screen">
+          <div class="onboarding-icon"><i class="ti ti-rocket"></i></div>
+          <h2>Welcome to TAMEYO Monitor</h2>
+          <p>Here's what we'll be tracking for you every month. Your first report will be ready soon.</p>
+          <div class="onboarding-details" id="onboarding-details">
+            <!-- rendered by JS -->
+          </div>
+          <button class="btn-got-it" id="btn-got-it">Got it — show my dashboard</button>
+        </div>
+      </div>
+
+      <!-- S-15: Reactivation wall -->
+      <div id="screen-reactivation" class="hidden">
+        <div class="reactivation-wall">
+          <i class="ti ti-player-pause"></i>
+          <h2>Your Monitor subscription has ended</h2>
+          <p id="reactivation-archive-text">You have <strong>0 months</strong> of monitoring data in your archive.</p>
+          <a href="https://www.tameyogroup.com/checkout?checkoutId=pro-plan-id" class="btn-reactivate-main" id="btn-reactivate-main">Reactivate Monitor</a>
+          <button class="link-archives" id="btn-view-archives">View archived reports</button>
+        </div>
+      </div>
+
+      <!-- S-04: Overview -->
+      <div id="screen-overview" class="hidden">
+        <div id="overview-new-report-banner" class="banner new-report hidden">
+          <i class="ti ti-sparkles"></i>
+          <span>New report available — your latest data is in!</span>
+        </div>
+        <div id="overview-paused-banner" class="banner paused hidden">
+          <i class="ti ti-alert-triangle"></i>
+          <span>Your subscription is paused. Data shown is from your last active report.</span>
+        </div>
+        <div id="overview-welcome" class="welcome-banner hidden">
+          <h2 id="overview-welcome-title">Welcome, let's get started</h2>
+          <p id="overview-welcome-sub">This is your first report. Deltas will appear from Report #2 onwards.</p>
+        </div>
+        <div id="presence-hero" class="presence-hero"></div>
+        <div id="stats-row" class="stats-row"></div>
+        <div id="priority-action-section"></div>
+        <div class="section-header">
+          <span class="section-title">Key Signals</span>
+          <button class="section-link" id="btn-all-signals">See all signals →</button>
+        </div>
+        <div id="signal-grid-overview" class="signal-grid"></div>
+        <div class="section-header" style="margin-top:20px">
+          <span class="section-title">Presence Score Trend</span>
+          <button class="section-link" id="btn-full-trend">Full trend →</button>
+        </div>
+        <div class="chart-card">
+          <div class="chart-container">
+            <canvas id="overview-chart"></canvas>
+            <div id="overview-chart-empty" class="chart-empty hidden">
+              <i class="ti ti-chart-line"></i>
+              <p>Your trend line appears after Report #2</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- S-05/S-06: Signals -->
+      <div id="screen-signals" class="hidden">
+        <div class="page-title" id="signals-title">All Signals</div>
+        <div id="signals-content"></div>
+      </div>
+
+      <!-- S-07: Trends -->
+      <div id="screen-trends" class="hidden">
+        <div class="page-title">Presence Score Trend</div>
+        <div class="chart-card trend-page">
+          <div class="chart-header">
+            <div style="display:flex;align-items:center;gap:16px;">
+              <div class="chart-range-btns" id="trend-range-btns">
+                <button class="range-btn active" data-range="3">3M</button>
+                <button class="range-btn" data-range="6">6M</button>
+                <button class="range-btn" data-range="12">12M</button>
+                <button class="range-btn" data-range="all">All</button>
+              </div>
+              <label class="benchmark-toggle">
+                <input type="checkbox" id="benchmark-toggle" />
+                <span>Show industry benchmark</span>
+              </label>
+            </div>
+          </div>
+          <div class="chart-container">
+            <canvas id="trend-chart"></canvas>
+            <div id="trend-chart-empty" class="chart-empty hidden">
+              <i class="ti ti-chart-line"></i>
+              <p>Your trend line appears after Report #2</p>
+            </div>
+          </div>
+        </div>
+        <div class="sparkline-accordion" id="sparkline-accordion"></div>
+      </div>
+
+      <!-- S-08: Compare -->
+      <div id="screen-compare" class="hidden">
+        <div class="page-title">Compare Reports</div>
+        <div class="compare-controls">
+          <select class="compare-select" id="compare-select-a"></select>
+          <span class="compare-vs">vs</span>
+          <select class="compare-select" id="compare-select-b"></select>
+        </div>
+        <div id="compare-summary" class="compare-summary-card"></div>
+        <table class="compare-table" id="compare-table">
+          <thead>
+            <tr>
+              <th>Signal</th>
+              <th id="compare-th-a">Month A</th>
+              <th>Change</th>
+              <th id="compare-th-b">Month B</th>
+            </tr>
+          </thead>
+          <tbody id="compare-tbody"></tbody>
+        </table>
+        <div id="compare-empty" class="empty-state hidden">
+          <i class="ti ti-calendar-x"></i>
+          <p>Not enough data yet. Available after your second report.</p>
+        </div>
+      </div>
+
+      <!-- S-09: Report Archive -->
+      <div id="screen-reports" class="hidden">
+        <div class="page-title">Report Archive</div>
+        <div id="reports-content"></div>
+      </div>
+
+      <!-- S-10: Action History -->
+      <div id="screen-actions" class="hidden">
+        <div class="page-title">Action History</div>
+        <div id="actions-content"></div>
+      </div>
+
+      <!-- S-11: Competitor Tracker -->
+      <div id="screen-competitors" class="hidden">
+        <div class="page-title">Competitor Tracker</div>
+        <div id="competitors-content"></div>
+      </div>
+
+      <!-- S-12: AI Visibility -->
+      <div id="screen-ai" class="hidden">
+        <div class="page-title">AI Visibility</div>
+        <div id="ai-content"></div>
+      </div>
+
+      <!-- S-13: Social Signals -->
+      <div id="screen-social" class="hidden">
+        <div class="page-title">Social Signals</div>
+        <div id="social-content"></div>
+      </div>
+
+      <!-- S-14: Upgrade Prompt -->
+      <div id="screen-upgrade" class="hidden">
+        <div id="upgrade-content"></div>
+      </div>
+
+      <!-- S-16: Account Settings -->
+      <div id="screen-settings" class="hidden">
+        <div class="page-title">Account Settings</div>
+        <div id="settings-content"></div>
+      </div>
+
+    </div><!-- /#page-content -->
+  </div><!-- /#app-shell -->
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <script src="logo.js"></script>
+  <script src="mockData.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
