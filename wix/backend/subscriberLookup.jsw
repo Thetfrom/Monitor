@@ -1,0 +1,39 @@
+// backend/subscriberLookup.jsw
+//
+// SETUP:
+// 1. In Wix editor → Dev Mode → Backend → New .jsw file → name it subscriberLookup
+// 2. Paste this file contents in
+// 3. Wix dashboard → Settings → Secrets Manager → add secret:
+//      Name:  MONITOR_READ_WEBHOOK
+//      Value: your Make.com subscriber-lookup webhook URL
+//
+// This file runs server-side. The Make.com URL never reaches the browser.
+
+import { fetch } from 'wix-fetch';
+import { getSecret } from 'wix-secrets-backend';
+
+/**
+ * Look up a Monitor subscriber record by member email address.
+ * Called from MyDashboard.js after the logged-in member's email is resolved.
+ *
+ * @param {string} email - The Wix member's login email
+ * @returns {{ subscriber_id, plan, status, business_name } | null}
+ */
+export async function getSubscriberByEmail(email) {
+  // Webhook URL stored in Wix Secrets Manager — never hardcode it here
+  const webhookUrl = await getSecret('MONITOR_READ_WEBHOOK');
+
+  const response = await fetch(webhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'lookup_by_email', email }),
+  });
+
+  if (!response.ok) return null;
+
+  const data = await response.json();
+  return data.subscriber || null;
+  // Make.com should return:
+  // { "subscriber": { "subscriber_id": "TM-2026-0047", "plan": "pro", "status": "active", "business_name": "Coastal HVAC Co." } }
+  // or { "subscriber": null } if no record found for this email
+}

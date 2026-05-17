@@ -17,13 +17,16 @@
 
   const ALLOWED_ORIGIN = 'https://www.tameyogroup.com';
 
+  // Set this to your Make.com Full Data Read webhook URL once configured.
+  // See wix/backend/subscriberLookup.jsw and VELO_BRIDGE setup guide.
+  const MAKE_READ_ENDPOINT = '';
+
   // ── BOOT ─────────────────────────────────────────────────────────────
   function boot() {
     setLogos();
 
     const mock = getMockConfig();
     if (mock) {
-      const plan = new URLSearchParams(window.location.search).get('mock');
       state.auth = {
         subscriberId: mock.masterRecord.subscriber_id,
         plan: mock.masterRecord.plan,
@@ -35,18 +38,33 @@
       return;
     }
 
-    // Real postMessage flow
+    // Real postMessage flow — signal readiness to Wix Velo bridge
     window.parent.postMessage({ type: 'ready' }, ALLOWED_ORIGIN);
 
-    // Timeout after 10s
-    const timeout = setTimeout(() => showScreen('no-account'), 10000);
+    // Timeout after 10s with no auth payload → show no-account screen
+    const timeout = setTimeout(() => showScreen('screen-no-account'), 10000);
 
     window.addEventListener('message', function handler(e) {
       if (e.origin !== ALLOWED_ORIGIN) return;
       const msg = e.data;
-      if (!msg || msg.type !== 'auth') return;
+      if (!msg) return;
+
+      // auth_error from Velo bridge (subscriber not found or session expired)
+      if (msg.type === 'auth_error') {
+        clearTimeout(timeout);
+        window.removeEventListener('message', handler);
+        if (msg.reason === 'session_expired') {
+          showScreen('screen-session-expired');
+        } else {
+          showScreen('screen-no-account');
+        }
+        return;
+      }
+
+      if (msg.type !== 'auth') return;
       clearTimeout(timeout);
       window.removeEventListener('message', handler);
+
       state.auth = {
         subscriberId: msg.subscriberId,
         plan: msg.plan,
@@ -65,16 +83,32 @@
   }
 
   function fetchSubscriberData(subscriberId) {
-    // In production this calls Make.com; for now show loading while we simulate
-    // actual data would come from Make.com webhook endpoint
-    showScreen('loading');
-    // Simulate async fetch
-    setTimeout(() => {
-      // No real endpoint configured — this path only used in live Wix context
-      // where Make.com returns real JSON
-      console.warn('No Make.com endpoint configured — expecting real data from Wix context');
-      showScreen('no-account');
-    }, 2000);
+    showScreen('screen-loading');
+
+    if (!MAKE_READ_ENDPOINT) {
+      console.warn('MAKE_READ_ENDPOINT not set in app.js — cannot load subscriber data.');
+      showScreen('screen-no-account');
+      return;
+    }
+
+    fetch(MAKE_READ_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscriber_id: subscriberId }),
+    })
+      .then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(json => {
+        if (!json || !json.masterRecord) throw new Error('Invalid payload');
+        state.data = json;
+        onDataReady();
+      })
+      .catch(err => {
+        console.error('Failed to load subscriber data:', err);
+        showScreen('screen-no-account');
+      });
   }
 
   function onDataReady() {
@@ -114,12 +148,13 @@
   }
 
   // ── SCREEN VISIBILITY ────────────────────────────────────────────────
+  // name should be the full element id, e.g. 'screen-loading', 'app-shell'
   function showScreen(name) {
-    ['loading', 'no-account', 'session-expired', 'app-shell'].forEach(id => {
-      const el = document.getElementById('screen-' + id) || document.getElementById(id);
+    ['screen-loading', 'screen-no-account', 'screen-session-expired', 'app-shell'].forEach(id => {
+      const el = document.getElementById(id);
       if (el) el.classList.add('hidden');
     });
-    const target = document.getElementById('screen-' + name) || document.getElementById(name);
+    const target = document.getElementById(name);
     if (target) target.classList.remove('hidden');
   }
 
