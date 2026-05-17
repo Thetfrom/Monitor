@@ -798,7 +798,7 @@
         data: benchmark,
         label: 'Industry Average',
         borderDash: [6, 4],
-        borderColor: 'rgba(255,255,255,0.3)',
+        borderColor: 'rgba(100,100,120,0.45)',
         backgroundColor: 'transparent',
         pointRadius: 0,
       });
@@ -1322,7 +1322,7 @@
           ${features.map(f => `<div class="upgrade-feature"><i class="ti ti-check"></i>${f}</div>`).join('')}
         </div>
         <a href="${checkoutUrl}" target="_blank" class="btn-upgrade">Upgrade to ${targetPlan} →</a>
-        <button onclick="history.back()" style="background:none;border:none;color:rgba(255,255,255,0.45);font-size:13px;cursor:pointer;margin-top:4px;">← Go back</button>
+        <button onclick="window.__navigate('overview')" style="background:none;border:none;color:rgba(255,255,255,0.45);font-size:13px;cursor:pointer;margin-top:4px;">← Back to overview</button>
       </div>
     `;
   }
