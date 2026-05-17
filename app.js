@@ -138,7 +138,8 @@
     showScreen('app-shell');
 
     // Check for first visit (report #1, no onboarding seen yet)
-    if (!onboardingSeen && snapshots.length === 1) {
+    const latestSnap = snapshots[snapshots.length - 1];
+    if (!onboardingSeen && latestSnap && latestSnap.report_number === 1) {
       renderOnboarding();
       showPage('onboarding');
       return;
@@ -375,32 +376,35 @@
   }
 
   function getSignalFields(plan, snapshot) {
-    const base = [
-      { field: 'maps_rank_kw1',      label: 'Maps Rank KW1',       lowerBetter: true },
-      { field: 'gbp_completeness_pct',label: 'GBP Completeness',   suffix: '%' },
-      { field: 'google_star_rating',  label: 'Google Rating',       suffix: '★' },
-      { field: 'mobile_pagespeed',    label: 'Mobile PageSpeed',    suffix: '' },
+    const lite = [
+      { field: 'maps_rank_kw1',       label: 'Maps Rank KW1',       lowerBetter: true },
+      { field: 'google_star_rating',   label: 'Google Rating',        suffix: '★' },
+      { field: 'mobile_pagespeed',     label: 'Mobile PageSpeed',     suffix: '' },
     ];
-    const pro = [
-      { field: 'maps_rank_kw2',       label: 'Maps Rank KW2',       lowerBetter: true },
-      { field: 'maps_rank_kw3',       label: 'Maps Rank KW3',       lowerBetter: true },
-      { field: 'desktop_pagespeed',   label: 'Desktop PageSpeed',   suffix: '' },
-      { field: 'trustpilot_rating',   label: 'Trustpilot Rating',   suffix: '★' },
-      { field: 'domain_authority',    label: 'Domain Authority',    suffix: '' },
-      { field: 'onpage_seo_score',    label: 'On-Page SEO',         suffix: '' },
-      { field: 'google_review_count', label: 'Google Reviews',      suffix: '' },
+    const proBase = [
+      { field: 'maps_rank_kw1',        label: 'Maps Rank KW1',        lowerBetter: true },
+      { field: 'gbp_completeness_pct', label: 'GBP Completeness',     suffix: '%' },
+      { field: 'google_star_rating',   label: 'Google Rating',        suffix: '★' },
+      { field: 'mobile_pagespeed',     label: 'Mobile PageSpeed',     suffix: '' },
+      { field: 'maps_rank_kw2',        label: 'Maps Rank KW2',        lowerBetter: true },
+      { field: 'maps_rank_kw3',        label: 'Maps Rank KW3',        lowerBetter: true },
+      { field: 'desktop_pagespeed',    label: 'Desktop PageSpeed',    suffix: '' },
+      { field: 'domain_authority',     label: 'Domain Authority',     suffix: '' },
     ];
-    const agency = [
-      { field: 'backlinks_total',          label: 'Backlinks',            suffix: '' },
-      { field: 'organic_rank_kw1',         label: 'Organic Rank KW1',     lowerBetter: true },
-      { field: 'organic_rank_kw2',         label: 'Organic Rank KW2',     lowerBetter: true },
-      { field: 'organic_rank_kw3',         label: 'Organic Rank KW3',     lowerBetter: true },
-      { field: 'instagram_engagement_rate',label: 'Instagram Engagement', suffix: '%' },
-      { field: 'facebook_page_score',      label: 'Facebook Score',       suffix: '' },
+    const agencyExtra = [
+      { field: 'trustpilot_rating',         label: 'Trustpilot Rating',    suffix: '★' },
+      { field: 'onpage_seo_score',          label: 'On-Page SEO',          suffix: '' },
+      { field: 'google_review_count',       label: 'Google Reviews',       suffix: '' },
+      { field: 'backlinks_total',           label: 'Backlinks',            suffix: '' },
+      { field: 'organic_rank_kw1',          label: 'Organic Rank KW1',     lowerBetter: true },
+      { field: 'organic_rank_kw2',          label: 'Organic Rank KW2',     lowerBetter: true },
+      { field: 'organic_rank_kw3',          label: 'Organic Rank KW3',     lowerBetter: true },
+      { field: 'instagram_engagement_rate', label: 'Instagram Engagement', suffix: '%' },
+      { field: 'facebook_page_score',       label: 'Facebook Score',       suffix: '' },
     ];
-    if (plan === 'lite') return base;
-    if (plan === 'pro') return [...base, ...pro];
-    return [...base, ...pro, ...agency];
+    if (plan === 'lite') return lite;
+    if (plan === 'pro') return proBase;
+    return [...proBase, ...agencyExtra];
   }
 
   function isNewReport(snapshot) {
@@ -490,6 +494,14 @@
     const snapshots = state.data.snapshots;
     const plan = mr.plan;
     const status = mr.status;
+
+    if (status === 'cancelled') {
+      navigateTo('reactivation');
+      return;
+    }
+
+    if (snapshots.length === 0) return;
+
     const curr = latest();
     const prevSnap = prev();
     const isFirstVisit = snapshots.length === 1;
@@ -539,9 +551,9 @@
       { field: 'maps_rank_kw1', label: 'Maps Rank', suffix: '', lowerBetter: true },
       { field: 'google_star_rating', label: 'Star Rating', suffix: '★', lowerBetter: false },
       { field: 'mobile_pagespeed', label: 'PageSpeed', suffix: '', lowerBetter: false },
-      { field: 'domain_authority', label: plan === 'lite' ? 'GBP Complete' : 'Domain Auth', lowerBetter: false,
-        fieldOverride: plan === 'lite' ? 'gbp_completeness_pct' : 'domain_authority',
-        suffixOverride: plan === 'lite' ? '%' : '' },
+      { field: 'domain_authority', label: plan === 'lite' ? 'Review Count' : 'Domain Auth', lowerBetter: false,
+        fieldOverride: plan === 'lite' ? 'google_review_count' : 'domain_authority',
+        suffixOverride: '' },
     ];
 
     const statsRow = document.getElementById('stats-row');
@@ -1336,15 +1348,14 @@
       : 'https://www.tameyogroup.com/checkout?checkoutId=agency-plan-id';
 
     const el = document.getElementById(screenId);
-    const existing = el.querySelector('.upgrade-prompt');
-    if (existing) existing.remove();
 
-    el.innerHTML += `
+    el.innerHTML = `
       <div class="upgrade-prompt" style="max-width:600px;margin:0 auto">
         <i class="ti ti-lock"></i>
         <h2>${featureName}</h2>
         <p>${desc}</p>
         <a href="${checkoutUrl}" target="_blank" class="btn-upgrade">Upgrade to ${targetPlan} →</a>
+        <button onclick="window.__navigate('overview')" style="background:none;border:none;color:rgba(255,255,255,0.45);font-size:13px;cursor:pointer;margin-top:4px;">← Back to overview</button>
       </div>
     `;
   }
@@ -1368,7 +1379,7 @@
         </div>
         <div class="settings-row">
           <div class="settings-key">Billing</div>
-          <div class="settings-value">${mr.billing.charAt(0).toUpperCase() + mr.billing.slice(1)}</div>
+          <div class="settings-value">${((mr.billing || 'monthly').charAt(0).toUpperCase() + (mr.billing || 'monthly').slice(1))}</div>
         </div>
         <div class="settings-row">
           <div class="settings-key">Subscriber Since</div>
