@@ -12,7 +12,7 @@
   <!-- S-01: Loading / Auth Gate -->
   <div id="screen-loading">
     <div class="loading-logo">
-      <img id="loading-logo-img" src="" alt="TAMEYO Monitor" />
+      <img id="loading-logo-img" src="logo.png" alt="TAMEYO Monitor" />
     </div>
     <div class="loading-dots">
       <span></span><span></span><span></span>
@@ -20,18 +20,18 @@
     <div class="loading-text">Connecting to your account...</div>
   </div>
 
-  <!-- S-02: Error — no account found -->
+  <!-- S-02: Error - no account found -->
   <div id="screen-no-account" class="error-screen hidden">
-    <img id="no-account-logo" src="" alt="TAMEYO Monitor" class="logo" />
+    <img id="no-account-logo" src="logo.png" alt="TAMEYO Monitor" class="logo" />
     <h2>We couldn't find a Monitor account for this email.</h2>
     <p>Check that you're signed into the correct Wix member account, or contact support.</p>
     <a href="mailto:service@tameyogroup.com" class="btn-primary">Contact Support</a>
     <a href="https://www.tameyogroup.com/monitor" class="link-secondary" target="_blank">Learn about TAMEYO Monitor</a>
   </div>
 
-  <!-- S-03: Error — session expired -->
+  <!-- S-03: Error - session expired -->
   <div id="screen-session-expired" class="error-screen hidden">
-    <img id="expired-logo" src="" alt="TAMEYO Monitor" class="logo" />
+    <img id="expired-logo" src="logo.png" alt="TAMEYO Monitor" class="logo" />
     <h2>Your session has expired. Please sign in again.</h2>
     <p>Your session timed out. Click below to sign in again through your Wix member account.</p>
     <button class="btn-primary" id="btn-reauth">Sign in again</button>
@@ -43,7 +43,7 @@
     <!-- Global Nav -->
     <nav id="main-nav">
       <div class="nav-logo">
-        <img id="nav-logo-img" src="" alt="TAMEYO Monitor" />
+        <img id="nav-logo-img" src="logo.png" alt="TAMEYO Monitor" />
       </div>
 
       <div class="nav-tabs" id="nav-tabs">
@@ -73,7 +73,7 @@
           <div class="onboarding-details" id="onboarding-details">
             <!-- rendered by JS -->
           </div>
-          <button class="btn-got-it" id="btn-got-it">Got it — show my dashboard</button>
+          <button class="btn-got-it" id="btn-got-it">Got it - show my dashboard</button>
         </div>
       </div>
 
@@ -83,7 +83,7 @@
           <i class="ti ti-player-pause"></i>
           <h2>Your Monitor subscription has ended</h2>
           <p id="reactivation-archive-text">You have <strong>0 months</strong> of monitoring data in your archive.</p>
-          <a href="https://www.tameyogroup.com/checkout?checkoutId=pro-plan-id" class="btn-reactivate-main" id="btn-reactivate-main">Reactivate Monitor</a>
+          <a href="#" class="btn-reactivate-main" id="btn-reactivate-main">Reactivate Monitor</a>
           <button class="link-archives" id="btn-view-archives">View archived reports</button>
         </div>
       </div>
@@ -92,7 +92,7 @@
       <div id="screen-overview" class="hidden">
         <div id="overview-new-report-banner" class="banner new-report hidden">
           <i class="ti ti-sparkles"></i>
-          <span>New report available — your latest data is in!</span>
+          <span>New report available - your latest data is in!</span>
         </div>
         <div id="overview-paused-banner" class="banner paused hidden">
           <i class="ti ti-alert-triangle"></i>
@@ -145,7 +145,7 @@
               </div>
               <label class="benchmark-toggle">
                 <input type="checkbox" id="benchmark-toggle" />
-                <span>Show industry benchmark</span>
+                <span>Show healthy target</span>
               </label>
             </div>
           </div>
@@ -234,5 +234,14 @@
   <script src="logo.js"></script>
   <script src="mockData.js"></script>
   <script src="app.js"></script>
+
+  <!-- Conversion upgrade popup -->
+  <div id="upgrade-modal" class="upgrade-modal-backdrop hidden">
+    <div class="upgrade-modal" role="dialog" aria-modal="true" aria-labelledby="upgrade-modal-title">
+      <button class="upgrade-modal-close" id="upgrade-modal-close" aria-label="Close">&times;</button>
+      <div id="upgrade-modal-content"></div>
+    </div>
+  </div>
 </body>
 </html>
+                                                  

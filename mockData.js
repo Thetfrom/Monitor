@@ -1,4 +1,4 @@
-// TAMEYO Monitor — Mock Data for local development
+// TAMEYO Monitor - Mock Data for local development
 // Usage: append ?mock=pro or ?mock=lite or ?mock=agency to URL
 // Additional params: &reports=1 (first visit), &status=paused, &status=cancelled
 
@@ -83,16 +83,16 @@ function getMockConfig() {
   const params = new URLSearchParams(window.location.search);
   const tier = params.get('mock');
   if (!tier || !MOCK_DATA[tier]) return null;
-
+  
   const data = JSON.parse(JSON.stringify(MOCK_DATA[tier]));
-
+  
   // Override status if specified
   const status = params.get('status');
   if (status) data.masterRecord.status = status;
-
+  
   // Truncate to 1 report for first-visit testing
   const reports = params.get('reports');
   if (reports === '1') data.snapshots = [data.snapshots[0]];
-
+  
   return data;
 }
