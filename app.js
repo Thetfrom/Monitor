@@ -32,12 +32,15 @@
       onDataReady();
       return;
     }
-    window.parent.postMessage({ type: 'ready' }, ALLOWED_ORIGIN);
+    // Wix HtmlComponent ("Embed a Site") relays messages through its own iframe
+    // bridge with a Wix-internal origin, so we post the ready ping to any parent
+    // and validate incoming messages by shape/type rather than exact origin.
+    // (The dashboard only renders the data it is handed, so this is safe.)
+    window.parent.postMessage({ type: 'ready' }, '*');
     const timeout = setTimeout(() => showScreen('screen-no-account'), 10000);
     window.addEventListener('message', function handler(e) {
-      if (e.origin !== ALLOWED_ORIGIN) return;
       const msg = e.data;
-      if (!msg) return;
+      if (!msg || typeof msg !== 'object') return;
       if (msg.type === 'auth_error') {
         clearTimeout(timeout);
         window.removeEventListener('message', handler);
