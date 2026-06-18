@@ -18,6 +18,19 @@
   };
 
   // ── BOOT ─────────────────────────────────────────────────────────────
+  function readUrlData() {
+    try {
+      const h = window.location.hash || '';
+      if (h === '#noaccount') return 'noaccount';
+      if (h.indexOf('#d=') === 0) {
+        const json = decodeURIComponent(escape(atob(h.slice(3))));
+        const payload = JSON.parse(json);
+        if (payload && payload.masterRecord) return payload;
+      }
+    } catch (e) {}
+    return null;
+  }
+
   function boot() {
     setLogos();
     const mock = getMockConfig();
@@ -32,12 +45,32 @@
       onDataReady();
       return;
     }
-    window.parent.postMessage({ type: 'ready' }, ALLOWED_ORIGIN);
+
+    // URL-delivered data (robust path): Velo sets the iframe URL with the data in
+    // the hash; we read it directly on load. No cross-frame messaging involved.
+    const urlData = readUrlData();
+    if (urlData === 'noaccount') { showScreen('screen-no-account'); return; }
+    if (urlData) {
+      state.auth = {
+        subscriberId: urlData.masterRecord.subscriber_id,
+        plan: urlData.masterRecord.plan,
+        status: urlData.masterRecord.status,
+        businessName: urlData.masterRecord.business_name,
+      };
+      state.data = { masterRecord: urlData.masterRecord, snapshots: urlData.snapshots || [] };
+      onDataReady();
+      return;
+    }
+
+    // Wix HtmlComponent ("Embed a Site") relays messages through its own iframe
+    // bridge with a Wix-internal origin, so we post the ready ping to any parent
+    // and validate incoming messages by shape/type rather than exact origin.
+    // (The dashboard only renders the data it is handed, so this is safe.)
+    window.parent.postMessage({ type: 'ready' }, '*');
     const timeout = setTimeout(() => showScreen('screen-no-account'), 10000);
     window.addEventListener('message', function handler(e) {
-      if (e.origin !== ALLOWED_ORIGIN) return;
       const msg = e.data;
-      if (!msg) return;
+      if (!msg || typeof msg !== 'object') return;
       if (msg.type === 'auth_error') {
         clearTimeout(timeout);
         window.removeEventListener('message', handler);
