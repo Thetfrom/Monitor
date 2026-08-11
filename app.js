@@ -1666,77 +1666,183 @@
 
   // ── S-11: COMPETITORS ────────────────────────────────────────────────
   function renderCompetitors() {
-    const plan = state.data.masterRecord.plan;
-    if (plan !== 'agency') {
-      renderUpgradePrompt('screen-competitors', 'Competitor Tracker', 'See exactly where your top 3 competitors rank month by month - and whether you\'re gaining or losing ground. Agency-exclusive.');
+    const planC = state.data.masterRecord.plan;
+    if (planC !== 'agency') {
+      renderUpgradePrompt('screen-competitors', 'Competitor Tracker', 'Track how your direct competitors rank against you on your own keywords. Available on Agency.');
       return;
     }
-
-    const mr = state.data.masterRecord;
-    const snapshots = state.data.snapshots;
-    const curr = latest();
-    const container = document.getElementById('competitors-content');
-
-    const hasCompetitors = mr.competitor_1_url || mr.competitor_2_url || mr.competitor_3_url;
-    if (!hasCompetitors) {
-      container.innerHTML = `
-        <div class="empty-state">
-          <i class="ti ti-swords"></i>
-          <p>No competitor URLs on file. Contact support to add up to 3 competitors.</p>
-          <a href="mailto:service@tameyogroup.com" class="btn-upgrade" style="margin-top:12px;font-size:13px;padding:10px 20px;">Contact Support</a>
-        </div>`;
-      return;
+    var mrC = state.data.masterRecord;
+    var snapsC = (state.data.snapshots || []).slice();
+    var checksC = state.data.aiVisibilityChecks || state.data.ai_visibility_checks || [];
+    var bizC = mrC.business_name || 'You';
+    var escC = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
+    var normHLc = function (s) { return String(s == null ? '' : s).toLowerCase().replace(/[\u2019\u02BC\u00B4]/g, "'"); };
+    var normC = function (s) { return normHLc(s).replace(/\bavenue\b/g, 'ave'); };
+    var num = function (v) { if (v === null || v === undefined) return null; if (typeof v === 'number') return isNaN(v) ? null : v; var x = String(v).trim(); if (!x || x === 'null' || x === '-' || x === 'undefined') return null; var n = parseInt(x, 10); return isNaN(n) ? null : n; };
+    var pillC = function (txt, bg, fg) { return '<span style="display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;background:' + bg + ';color:' + fg + '">' + txt + '</span>'; };
+    var cardC = function (title, sub, inner, full) {
+      return '<div class="' + (full ? 'tmc-full' : '') + '" style="background:#fff;border:1px solid #eceaf5;border-radius:14px;padding:18px 20px">'
+        + (title ? '<div style="font-weight:700;color:#0F0638;font-size:15px">' + title + '</div>' : '')
+        + (sub ? '<div style="font-size:12px;color:#8a8fa6;margin-top:3px;line-height:1.5">' + sub + '</div>' : '')
+        + '<div style="margin-top:13px">' + inner + '</div></div>';
+    };
+    var compsC = [];
+    [1, 2, 3].forEach(function (n) {
+      var nm = mrC['competitor_' + n + '_name'];
+      var url = mrC['competitor_' + n + '_url'];
+      if (nm || url) compsC.push({ slot: n, name: nm || '', url: url || '' });
+    });
+    var htmlC;
+    if (!compsC.length) {
+      htmlC = '<div class="empty-state"><i class="ti ti-users"></i><p>Your three direct competitors are being identified from the businesses that rank alongside you for your own keywords. They appear here once each one is confirmed.</p></div>';
+    } else {
+      snapsC.sort(function (a, b) {
+        var ra = num(a.report_number), rb = num(b.report_number);
+        if (ra !== null && rb !== null && ra !== rb) return ra - rb;
+        return String(a.snapshot_date || '').localeCompare(String(b.snapshot_date || ''));
+      });
+      var latestC = snapsC.length ? snapsC[snapsC.length - 1] : null;
+      var prevC = snapsC.length > 1 ? snapsC[snapsC.length - 2] : null;
+      var kw2C = mrC.target_keyword_2 || '';
+      var cmpKw = kw2C || mrC.target_keyword_1 || '';
+      var myRankOf = function (sn) { if (!sn) return null; return kw2C ? num(sn.maps_rank_kw2) : num(sn.maps_rank_kw1); };
+      var myRank = myRankOf(latestC), myPrev = myRankOf(prevC);
+      compsC.forEach(function (c) {
+        c.rank = latestC ? num(latestC['competitor_' + c.slot + '_maps_rank']) : null;
+        c.prev = prevC ? num(prevC['competitor_' + c.slot + '_maps_rank']) : null;
+      });
+      var ranked = compsC.filter(function (c) { return c.rank !== null; });
+      var aheadOfMe = myRank === null ? [] : ranked.filter(function (c) { return c.rank < myRank; });
+      var closest = null;
+      ranked.forEach(function (c) { if (myRank !== null && c.rank > myRank) { if (!closest || c.rank < closest.rank) closest = c; } });
+      var headC, subC, st;
+      if (myRank === null) {
+        headC = 'Your rank for "' + escC(cmpKw) + '" has not been recorded yet.';
+        subC = 'Competitor positions appear here once your next monthly report runs.';
+        st = { t: 'Measuring', b: '#f0f0f4', f: '#8a8fa6' };
+      } else if (!ranked.length) {
+        headC = 'You rank #' + myRank + ' for "' + escC(cmpKw) + '".';
+        subC = 'None of your ' + compsC.length + ' tracked competitors have a recorded position yet. Theirs appear on the next monthly report.';
+        st = { t: 'Awaiting competitor data', b: '#f0f0f4', f: '#8a8fa6' };
+      } else if (!aheadOfMe.length) {
+        headC = 'You rank #' + myRank + ' for "' + escC(cmpKw) + '", ahead of every tracked competitor.';
+        subC = closest ? 'Closest behind you is ' + escC(closest.name || closest.url) + ' at #' + closest.rank + ', ' + (closest.rank - myRank) + ' place' + (closest.rank - myRank === 1 ? '' : 's') + ' back.' : '';
+        st = { t: 'Leading', b: '#e8f7e0', f: '#3f9c1c' };
+      } else {
+        headC = aheadOfMe.length + ' of your ' + ranked.length + ' tracked competitors rank ahead of you for "' + escC(cmpKw) + '".';
+        var best = aheadOfMe.slice().sort(function (a, b) { return a.rank - b.rank; })[0];
+        subC = 'You are #' + myRank + '. ' + escC(best.name || best.url) + ' is highest at #' + best.rank + '.';
+        st = { t: aheadOfMe.length >= 2 ? 'Losing ground' : 'Under pressure', b: aheadOfMe.length >= 2 ? '#fde8e8' : '#fff4e0', f: aheadOfMe.length >= 2 ? '#c0392b' : '#a86b12' };
+      }
+      var moveC = '';
+      if (myRank !== null && myPrev !== null && myRank !== myPrev) {
+        moveC = myRank < myPrev ? 'You moved up ' + (myPrev - myRank) + ' place' + (myPrev - myRank === 1 ? '' : 's') + ' since the last report.' : 'You moved down ' + (myRank - myPrev) + ' place' + (myRank - myPrev === 1 ? '' : 's') + ' since the last report.';
+      }
+      var actC = myRank === null ? 'Nothing to act on yet. Your first competitor comparison lands with your next monthly report.'
+        : aheadOfMe.length ? 'Look at what the businesses above you are doing on this keyword. Local map position moves slowly, so judge it over a few reports, not one.'
+        : (moveC ? moveC + ' Hold your position; single-report moves are normal.' : 'Hold your position. Local map rankings move day to day, so treat one change as noise.');
+      var verdictC = '<div class="tmc-full" style="background:#fff;border:1px solid #eceaf5;border-radius:14px;padding:20px 22px">'
+        + '<div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap">'
+        + (myRank === null ? '' : '<div style="text-align:center;flex:0 0 auto;min-width:96px"><div style="font-size:40px;font-weight:700;color:#0F0638;line-height:1">#' + myRank + '</div><div style="font-size:11px;color:#8a8fa6;margin-top:3px">your position</div></div>')
+        + '<div style="flex:1;min-width:280px">'
+        + '<div style="font-size:11px;letter-spacing:.08em;color:#8a8fa6;font-weight:600">COMPETITOR TRACKER' + (latestC && latestC.snapshot_date ? ' &middot; ' + escC(latestC.snapshot_date) : '') + '</div>'
+        + '<div style="font-size:21px;line-height:1.3;font-weight:700;margin:8px 0 7px;color:#0F0638">' + headC + '</div>'
+        + (subC ? '<div style="font-size:13.5px;color:#5c5f75;line-height:1.6">' + subC + '</div>' : '')
+        + '<div style="margin-top:13px">' + pillC(st.t, st.b, st.f) + ' ' + pillC('map rank, monthly', '#f0f0f4', '#8a8fa6') + '</div>'
+        + '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #f0f0f4;font-size:13px;color:#3f4157"><b>What to do:</b> ' + actC + '</div>'
+        + '</div></div></div>';
+      var rowsAll = [{ name: bizC, url: mrC.website_url || '', rank: myRank, prev: myPrev, own: true }]
+        .concat(compsC.map(function (c) { return { name: c.name || c.url, url: c.url, rank: c.rank, prev: c.prev, own: false }; }));
+      rowsAll.sort(function (a, b) { if (a.rank === null && b.rank === null) return 0; if (a.rank === null) return 1; if (b.rank === null) return -1; return a.rank - b.rank; });
+      var h2hRows = rowsAll.map(function (r, i) {
+        var mv = (r.rank === null || r.prev === null) ? '<span style="color:#c9c9d6">no prior report</span>'
+          : r.rank < r.prev ? '<span style="color:#3f9c1c;font-weight:700">&#9650; up ' + (r.prev - r.rank) + '</span>'
+          : r.rank > r.prev ? '<span style="color:#c0392b;font-weight:700">&#9660; down ' + (r.rank - r.prev) + '</span>'
+          : '<span style="color:#8a8fa6">no change</span>';
+        var gap = (r.own || r.rank === null || myRank === null) ? '' : (r.rank > myRank ? '<span style="color:#3f9c1c">' + (r.rank - myRank) + ' behind you</span>' : '<span style="color:#c0392b">' + (myRank - r.rank) + ' ahead of you</span>');
+        return '<tr' + (r.own ? ' style="background:#faf9ff"' : '') + '>'
+          + '<td style="padding:10px 8px;border-bottom:1px solid #f4f4f8;color:#c9c9d6;font-weight:700">' + (r.rank === null ? '-' : i + 1) + '</td>'
+          + '<td style="padding:10px 8px;border-bottom:1px solid #f4f4f8;' + (r.own ? 'font-weight:700' : '') + '">' + escC(r.name) + (r.own ? ' ' + pillC('you', '#0F0638', '#ffffff') : '') + '</td>'
+          + '<td style="padding:10px 8px;border-bottom:1px solid #f4f4f8;font-weight:700;color:#0F0638">' + (r.rank === null ? '<span style="color:#8a8fa6;font-weight:400">not in the top results</span>' : '#' + r.rank) + '</td>'
+          + '<td style="padding:10px 8px;border-bottom:1px solid #f4f4f8;font-size:12.5px">' + gap + '</td>'
+          + '<td style="padding:10px 8px;border-bottom:1px solid #f4f4f8;font-size:12.5px">' + mv + '</td></tr>';
+      }).join('');
+      var missingRank = compsC.filter(function (c) { return c.rank === null; }).length;
+      var h2h = cardC('Head to head on "' + escC(cmpKw) + '"', 'Google local map position for one keyword, from your latest monthly report. Lower is better.',
+        '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;color:#0F0638"><thead><tr>'
+        + '<th style="text-align:left;padding:6px 8px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">#</th>'
+        + '<th style="text-align:left;padding:6px 8px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">BUSINESS</th>'
+        + '<th style="text-align:left;padding:6px 8px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">MAP RANK</th>'
+        + '<th style="text-align:left;padding:6px 8px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">GAP</th>'
+        + '<th style="text-align:left;padding:6px 8px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">VS LAST REPORT</th>'
+        + '</tr></thead><tbody>' + h2hRows + '</tbody></table></div>'
+        + (missingRank ? '<div style="font-size:12px;color:#8a8fa6;margin-top:10px">' + missingRank + ' competitor' + (missingRank === 1 ? '' : 's') + ' had no recorded position in this report. That means they did not appear in the top local results for this keyword, or they were added since the last run.</div>' : '')
+        + (kw2C ? '' : '<div style="font-size:12px;color:#8a8fa6;margin-top:8px">This comparison uses your first keyword because no second keyword is set.</div>'), false);
+      var byMDc = {}, orderC = [];
+      checksC.forEach(function (c) { var k = c.model + '|' + c.check_date; if (!byMDc[k]) orderC.push(k); byMDc[k] = c; });
+      var rowsChk = orderC.map(function (k) { return byMDc[k]; });
+      var datesC = [];
+      rowsChk.forEach(function (c) { if (datesC.indexOf(c.check_date) === -1) datesC.push(c.check_date); });
+      datesC.sort();
+      var todayC = datesC[datesC.length - 1];
+      var todayRowsC = rowsChk.filter(function (c) { return c.check_date === todayC; });
+      var ansC = [];
+      todayRowsC.forEach(function (c) { [1, 2, 3].forEach(function (n) { if (c['answer_kw' + n]) ansC.push({ t: c['answer_kw' + n], k: n - 1, m: c.model }); }); });
+      var cntC = function (name) { var nn = normC(name); if (!nn) return 0; return ansC.filter(function (a) { return normC(a.t).indexOf(nn) !== -1; }).length; };
+      var sovPanel;
+      if (!ansC.length) {
+        sovPanel = cardC('Who the AIs name most', 'How often each business appears in stored AI answers.', '<div style="padding:16px;background:#faf9ff;border-radius:10px;font-size:12.5px;color:#8a8fa6">No AI answers stored yet. This fills in from your daily AI checks.</div>', false);
+      } else {
+        var entsC = [{ n: bizC, own: true }].concat(compsC.filter(function (c) { return c.name; }).map(function (c) { return { n: c.name, own: false }; }));
+        entsC.forEach(function (en) { en.c = cntC(en.n); });
+        var maxSov = Math.max.apply(null, entsC.map(function (en) { return en.c; }).concat([1]));
+        var sovRows = entsC.slice().sort(function (a, b) { return b.c - a.c; }).map(function (en) {
+          var p = Math.round(en.c / ansC.length * 100);
+          return '<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px"><span style="color:#0F0638;' + (en.own ? 'font-weight:700' : '') + '">' + escC(en.n) + (en.own ? ' ' + pillC('you', '#0F0638', '#ffffff') : '') + '</span><span style="color:#5c5f75"><b>' + p + '%</b> <span style="color:#a9aabb;font-size:11.5px">' + en.c + '/' + ansC.length + '</span></span></div>'
+            + '<div style="height:8px;background:#f4f4f8;border-radius:99px;overflow:hidden"><div style="height:8px;width:' + Math.round(en.c / maxSov * 100) + '%;background:' + (en.own ? '#0F0638' : '#c5c3dc') + ';border-radius:99px"></div></div></div>';
+        }).join('');
+        sovPanel = cardC('Who the AIs name most', 'Across ' + ansC.length + ' AI answers stored on ' + escC(todayC) + '. This is measured daily, unlike the map ranks above.', sovRows + '<div style="font-size:12px;color:#8a8fa6;margin-top:4px;padding-top:10px;border-top:1px solid #f4f4f8">These are the same figures as your AI Visibility page.</div>', false);
+      }
+      var kwNamesC = [mrC.target_keyword_1 || '', mrC.target_keyword_2 || '', mrC.target_keyword_3 || ''];
+      var beats = [];
+      todayRowsC.forEach(function (c) {
+        [1, 2, 3].forEach(function (n) {
+          var kn = kwNamesC[n - 1]; if (!kn) return;
+          var ans = c['answer_kw' + n]; if (!ans) return;
+          if (c['kw' + n + '_mentioned'] === 'yes') return;
+          compsC.forEach(function (comp) {
+            if (!comp.name) return;
+            if (normC(ans).indexOf(normC(comp.name)) !== -1) beats.push({ m: c.model, k: kn, c: comp.name });
+          });
+        });
+      });
+      var beatsInner = beats.length
+        ? beats.map(function (b) {
+            return '<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid #f4f4f8">'
+              + '<div style="width:8px;height:8px;border-radius:50%;background:#c0392b;margin-top:5px;flex:0 0 auto"></div>'
+              + '<div style="font-size:12.5px;color:#3f4157;line-height:1.5"><b>' + escC(b.c) + '</b> is named by <b>' + escC(b.m).toUpperCase() + '</b> for "' + escC(b.k) + '" and you are not</div></div>';
+          }).join('') + '<div style="font-size:12px;color:#8a8fa6;margin-top:11px;padding-top:10px;border-top:1px solid #f4f4f8">Each line is a question where a customer hears about them instead of you.</div>'
+        : '<div style="padding:16px;background:#f4fbf0;border-radius:10px;font-size:13px;color:#2f7a12">There is no answer today where a tracked competitor is named and you are not.</div>';
+      var beatsPanel = cardC('Where they beat you in AI answers', 'Keyword and model combinations where a competitor appears and your business does not.', beatsInner, false);
+      var whyRows = compsC.map(function (c) {
+        return '<div style="padding:9px 0;border-top:1px solid #f4f4f8;font-size:13px;color:#3f4157"><b>' + escC(c.name || 'Not named yet') + '</b>'
+          + (c.url ? '<div style="font-size:12px;color:#8a8fa6;margin-top:2px">' + escC(c.url.replace(/^https?:\/\//, '')) + '</div>' : '<div style="font-size:12px;color:#a86b12;margin-top:2px">No website recorded, so no map rank can be matched for this slot</div>')
+          + '</div>';
+      }).join('');
+      var whyPanel = cardC('Why these ' + compsC.length, 'A business is only tracked here if it passes all four checks against real data.',
+        '<div style="font-size:12.5px;color:#3f4157;line-height:1.7">'
+        + '1. It shares at least one business category with you<br>'
+        + '2. It appeared in the same local results as you for at least one of your keywords<br>'
+        + '3. It trades in your city<br>'
+        + '4. It is currently open<br>'
+        + '</div>' + whyRows
+        + '<div style="font-size:12px;color:#8a8fa6;margin-top:11px;padding-top:10px;border-top:1px solid #f4f4f8">We do not let anyone type a competitor into a box. If a business cannot pass all four checks it is left out rather than guessed at.</div>', false);
+      htmlC = '<style>.tmc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.tmc-grid>.tmc-full{grid-column:1/-1}@media(max-width:900px){.tmc-grid{grid-template-columns:1fr}}</style><div class="tmc-grid">'
+        + verdictC + h2h + sovPanel + beatsPanel + whyPanel + '</div>';
     }
-
-    const competitors = [
-      { n: 1, url: mr.competitor_1_url, rank: curr.competitor_1_maps_rank, color: '#E8400A' },
-      { n: 2, url: mr.competitor_2_url, rank: curr.competitor_2_maps_rank, color: '#7C3AED' },
-      { n: 3, url: mr.competitor_3_url, rank: curr.competitor_3_maps_rank, color: '#0EA5E9' },
-    ].filter(c => c.url);
-
-    const myRank = curr.maps_rank_kw1;
-    const prevSnap = prev();
-    const prevMy = prevSnap ? prevSnap.maps_rank_kw1 : null;
-    const overtakes = [];
-
-    const rows = competitors.map(c => {
-      const n = c.n;
-      const theirRank = c.rank;
-      const gap = (myRank != null && theirRank != null) ? theirRank - myRank : null;
-      let gapText = 'No rank yet', gapClass = 'level';
-      if (gap !== null) {
-        if (gap > 0) { gapText = `You are ${gap} spot${gap !== 1 ? 's' : ''} ahead`; gapClass = 'ahead'; }
-        else if (gap < 0) { gapText = `You are ${-gap} spot${-gap !== 1 ? 's' : ''} behind`; gapClass = 'behind'; }
-        else { gapText = 'Level with you'; gapClass = 'level'; }
-      }
-      const prevTheir = prevSnap ? prevSnap['competitor_' + n + '_maps_rank'] : null;
-      let moveHtml = '';
-      if (prevTheir != null && theirRank != null && prevTheir !== theirRank) {
-        const improved = theirRank < prevTheir; // lower rank = better
-        moveHtml = `<span class="competitor-move ${improved ? 'worse-for-you' : 'better-for-you'}">${improved ? '↑' : '↓'} ${Math.abs(prevTheir - theirRank)} vs last mo</span>`;
-      }
-      if (prevMy != null && prevTheir != null && myRank != null && theirRank != null) {
-        if (prevMy > prevTheir && myRank <= theirRank) overtakes.push({ type: 'win', url: c.url });
-        else if (prevMy < prevTheir && myRank > theirRank) overtakes.push({ type: 'loss', url: c.url });
-      }
-      return `
-        <div class="competitor-row">
-          <div class="competitor-url">${c.url}</div>
-          <div class="competitor-rank" style="color:${c.color}">Rank ${theirRank != null ? theirRank : '-'} ${moveHtml}</div>
-          <div class="competitor-gap ${gapClass}">${gapText}</div>
-        </div>`;
-    }).join('');
-
-    const alertHtml = overtakes.length ? `<div class="competitor-alerts">${overtakes.map(o => o.type === 'win'
-      ? `<div class="competitor-alert win"><i class="ti ti-trophy"></i> You overtook ${o.url} this month. Keep the pressure on.</div>`
-      : `<div class="competitor-alert loss"><i class="ti ti-alert-triangle"></i> ${o.url} overtook you this month. This is the one to focus on.</div>`).join('')}</div>` : '';
-
-    container.innerHTML = alertHtml + `
-      <div class="competitor-grid">${rows}</div>
-      <p class="competitor-note">Rankings update each monthly report cycle. Lower rank is better.</p>`;
+    var elC = document.getElementById('competitors-content');
+    if (elC) { elC.innerHTML = htmlC; } else { var scC = document.getElementById('screen-competitors'); if (scC) { var oldC = scC.querySelector('.honest-inject'); if (oldC) oldC.remove(); scC.insertAdjacentHTML('beforeend', '<div class="honest-inject">' + htmlC + '</div>'); } }
   }
-
-  // ── S-16: SETTINGS ───────────────────────────────────────────────────
   function renderSettings() {
     const mr = state.data.masterRecord;
     const container = document.getElementById('settings-content');
