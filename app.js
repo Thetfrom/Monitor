@@ -1848,7 +1848,7 @@
         return '<span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;background:#f0f0f4;color:#8a8fa6">-</span>';
       };
       var dedupAI = orderAI.map(function (k) { return byMD[k]; });
-      var normSoV = function (s) { return String(s).toLowerCase().replace(/\bavenue\b/g, 'ave'); };
+      var normSoV = function (s) { return String(s).toLowerCase().replace(/[\u2019\u02BC\u00B4]/g, "'").replace(/\bavenue\b/g, 'ave'); };
       var ansListSoV = [];
       dedupAI.forEach(function (c) { ['answer_kw1', 'answer_kw2', 'answer_kw3'].forEach(function (f) { if (c[f]) ansListSoV.push(normSoV(c[f])); }); });
       var entsSoV = [];
