@@ -1812,75 +1812,155 @@
     }
     const checks = state.data.aiVisibilityChecks || state.data.ai_visibility_checks || [];
     var mrAI = state.data.masterRecord;
+    var bizAI = mrAI.business_name || '';
     var kwNames = [mrAI.target_keyword_1 || '', mrAI.target_keyword_2 || '', mrAI.target_keyword_3 || ''];
     var escAI = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
+    var normHL = function (s) { return String(s == null ? '' : s).toLowerCase().replace(/[\u2019\u02BC\u00B4]/g, "'"); };
+    var normAI = function (s) { return normHL(s).replace(/\bavenue\b/g, 'ave'); };
+    var pill = function (txt, bg, fg) { return '<span style="display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;background:' + bg + ';color:' + fg + '">' + txt + '</span>'; };
     var htmlAI;
-    if (checks.length) {
-      var byMD = {};
-      var orderAI = [];
+    if (!checks.length) {
+      htmlAI = '<div class="empty-state"><i class="ti ti-brain"></i><p>Daily AI visibility checks are being set up for your account. Your first results appear within a day - no action needed on your side.</p></div>';
+    } else {
+      var byMD = {}, orderAI = [];
       checks.forEach(function (c) { var k = c.model + '|' + c.check_date; if (!byMD[k]) orderAI.push(k); byMD[k] = c; });
-      var modelsAI = {};
-      orderAI.forEach(function (k) { var c = byMD[k]; (modelsAI[c.model] = modelsAI[c.model] || []).push(c); });
-      var cards = Object.keys(modelsAI).map(function (m) {
-        var arr = modelsAI[m]; var c = arr[arr.length - 1]; var prev = arr.length > 1 ? arr[arr.length - 2] : null;
-        var maxKw = ['kw1_mentioned', 'kw2_mentioned', 'kw3_mentioned'].filter(function (k) { return c[k] === 'yes' || c[k] === 'no'; }).length || 3;
-        var dot = c.score >= 2 ? 'green' : c.score >= 1 ? 'amber' : 'red';
-        var delta = '';
-        if (prev && typeof prev.score === 'number' && typeof c.score === 'number') {
-          var d = c.score - prev.score;
-          delta = d > 0 ? '<span style="color:#3f9c1c;font-weight:700;font-size:15px"> &#9650; +' + d + '</span>' : d < 0 ? '<span style="color:#c0392b;font-weight:700;font-size:15px"> &#9660; ' + d + '</span>' : '<span style="color:#8a8fa6;font-size:12px"> unchanged</span>';
-        }
-        return '<div class="signal-card"><div class="signal-card-header"><div class="signal-name">' + escAI(m).toUpperCase() + '</div><div class="rag-dot ' + dot + '"></div></div><div class="signal-value">' + c.score + '/' + maxKw + delta + '</div><div style="font-size:12px;color:#8a8fa6;margin-top:4px">Keywords you appear for - ' + escAI(c.check_date) + (prev ? '' : ' - first check') + '</div></div>';
-      }).join('');
-      var changesAI = [];
-      Object.keys(modelsAI).forEach(function (m) {
-        var arr = modelsAI[m]; if (arr.length < 2) return; var c = arr[arr.length - 1], p = arr[arr.length - 2];
-        [['kw1_mentioned', 0], ['kw2_mentioned', 1], ['kw3_mentioned', 2]].forEach(function (pr) {
-          var f = pr[0], kn = kwNames[pr[1]]; if (!kn) return;
-          if (p[f] === 'no' && c[f] === 'yes') changesAI.push('<div style="color:#3f9c1c">&#9650; ' + escAI(m).toUpperCase() + ' now mentions you for &quot;' + escAI(kn) + '&quot;</div>');
-          if (p[f] === 'yes' && c[f] === 'no') changesAI.push('<div style="color:#c0392b">&#9660; ' + escAI(m).toUpperCase() + ' stopped mentioning you for &quot;' + escAI(kn) + '&quot;</div>');
+      var rowsAll = orderAI.map(function (k) { return byMD[k]; });
+      var dates = [];
+      rowsAll.forEach(function (c) { if (dates.indexOf(c.check_date) === -1) dates.push(c.check_date); });
+      dates.sort();
+      var todayD = dates[dates.length - 1];
+      var prevD = dates.length > 1 ? dates[dates.length - 2] : null;
+      var todayRows = rowsAll.filter(function (c) { return c.check_date === todayD; });
+      var prevRows = prevD ? rowsAll.filter(function (c) { return c.check_date === prevD; }) : [];
+      var ansOf = function (rows) { var a = []; rows.forEach(function (c) { [1, 2, 3].forEach(function (n) { var v = c['answer_kw' + n]; if (v) a.push({ t: v, k: n - 1, m: c.model }); }); }); return a; };
+      var ansToday = ansOf(todayRows), ansPrev = ansOf(prevRows);
+      var ents = [];
+      if (bizAI) ents.push({ n: bizAI, own: true });
+      [mrAI.competitor_1_name, mrAI.competitor_2_name, mrAI.competitor_3_name].forEach(function (cn) { if (cn) ents.push({ n: cn, own: false }); });
+      var cntIn = function (list, name) { var nn = normAI(name); if (!nn) return 0; return list.filter(function (a) { return normAI(a.t).indexOf(nn) !== -1; }).length; };
+      ents.forEach(function (en) { en.c = cntIn(ansToday, en.n); en.p = ansPrev.length ? cntIn(ansPrev, en.n) : null; });
+      var meAI = ents.filter(function (en) { return en.own; })[0];
+      var rivals = ents.filter(function (en) { return !en.own; }).slice().sort(function (a, b) { return b.c - a.c; });
+      var namedModels = todayRows.filter(function (c) { return c.kw1_mentioned === 'yes' || c.kw2_mentioned === 'yes' || c.kw3_mentioned === 'yes'; }).length;
+      var totalModels = todayRows.length;
+      var chg = [];
+      todayRows.forEach(function (c) {
+        var p = prevRows.filter(function (x) { return x.model === c.model; })[0];
+        if (!p) return;
+        [1, 2, 3].forEach(function (n) {
+          var f = 'kw' + n + '_mentioned', kn = kwNames[n - 1];
+          if (!kn) return;
+          if (p[f] === 'yes' && c[f] === 'no') chg.push({ up: false, m: c.model, k: kn });
+          if (p[f] === 'no' && c[f] === 'yes') chg.push({ up: true, m: c.model, k: kn });
         });
       });
-      var changesHtml = changesAI.length ? '<div style="margin-top:14px;background:#fff;border-radius:12px;padding:14px 16px"><div style="font-weight:700;color:#0F0638;margin-bottom:6px">Changes vs previous check</div><div style="font-size:13px;line-height:1.8">' + changesAI.join('') + '</div></div>' : '';
-      var chipAI = function (v) {
-        if (v === 'yes') return '<span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;background:#e8f7e0;color:#3f9c1c">yes</span>';
-        if (v === 'no') return '<span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;background:#fde8e8;color:#c0392b">no</span>';
-        return '<span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;background:#f0f0f4;color:#8a8fa6">-</span>';
-      };
-      var dedupAI = orderAI.map(function (k) { return byMD[k]; });
-      var normSoV = function (s) { return String(s).toLowerCase().replace(/[\u2019\u02BC\u00B4]/g, "'").replace(/\bavenue\b/g, 'ave'); };
-      var ansListSoV = [];
-      dedupAI.forEach(function (c) { ['answer_kw1', 'answer_kw2', 'answer_kw3'].forEach(function (f) { if (c[f]) ansListSoV.push(normSoV(c[f])); }); });
-      var entsSoV = [];
-      if (mrAI.business_name) entsSoV.push({ n: mrAI.business_name, own: true });
-      [mrAI.competitor_1_name, mrAI.competitor_2_name, mrAI.competitor_3_name].forEach(function (cn) { if (cn) entsSoV.push({ n: cn, own: false }); });
-      var sovHtml = '';
-      if (ansListSoV.length && entsSoV.length) {
-        var rowsSoV = entsSoV.map(function (e) {
-          var cnt = ansListSoV.filter(function (a) { return a.indexOf(normSoV(e.n)) !== -1; }).length;
-          var pct = Math.round(cnt / ansListSoV.length * 100);
-          return '<div style="margin:8px 0"><div style="display:flex;justify-content:space-between;font-size:13px;color:#0F0638"><span style="font-weight:' + (e.own ? '700' : '400') + '">' + escAI(e.n) + (e.own ? ' (you)' : '') + '</span><span>' + cnt + ' of ' + ansListSoV.length + ' answers - ' + pct + '%</span></div><div style="background:#f0f0f4;border-radius:6px;height:10px;margin-top:4px"><div style="width:' + pct + '%;height:10px;border-radius:6px;background:' + (e.own ? '#0F0638' : '#8a8fa6') + '"></div></div></div>';
+      var pctMe = ansToday.length && meAI ? Math.round(meAI.c / ansToday.length * 100) : null;
+      var kwCount = kwNames.filter(Boolean).length;
+      var headA = (totalModels && namedModels === totalModels ? 'All ' + totalModels + ' AI model' + (totalModels === 1 ? '' : 's') + ' name you' : namedModels + ' of ' + totalModels + ' AI models name you') + ' for at least one of your ' + kwCount + ' tracked keywords.';
+      var subA = meAI && ansToday.length ? 'You are named in <b>' + meAI.c + ' of ' + ansToday.length + '</b> answers stored today.' : 'Answers start being stored from your next check.';
+      if (meAI && ansToday.length && rivals.length && rivals[0].c > 0) subA += ' Your closest tracked rival, ' + escAI(rivals[0].n) + ', is named in ' + rivals[0].c + '.';
+      var st = pctMe === null ? { t: 'Measuring', b: '#f0f0f4', f: '#8a8fa6' } : pctMe >= 70 ? { t: 'Strong position', b: '#e8f7e0', f: '#3f9c1c' } : pctMe >= 40 ? { t: 'Mixed position', b: '#fff4e0', f: '#a86b12' } : { t: 'Weak position', b: '#fde8e8', f: '#c0392b' };
+      var actA = chg.length
+        ? (escAI(chg[0].m).toUpperCase() + (chg[0].up ? ' started naming you for "' + escAI(chg[0].k) + '". Nothing to do - this is movement in your favour.' : ' stopped naming you for "' + escAI(chg[0].k) + '". Watch it for a few days before acting; single-day moves are normal.'))
+        : (prevD ? 'Nothing changed since ' + escAI(prevD) + '. No action needed today.' : 'This is your first check, so there is nothing to compare yet. We start tracking changes from tomorrow.');
+      var blockA = '<div style="background:#fff;border-radius:14px;padding:22px 24px;border:1px solid #eceaf5">'
+        + '<div style="font-size:11px;letter-spacing:.08em;color:#8a8fa6;font-weight:600">AI VISIBILITY &middot; ' + escAI(todayD) + '</div>'
+        + '<div style="font-size:23px;line-height:1.3;font-weight:700;margin:10px 0 8px;color:#0F0638">' + escAI(headA) + '</div>'
+        + '<div style="font-size:14px;color:#5c5f75;line-height:1.6">' + subA + '</div>'
+        + '<div style="margin:15px 0 0">' + pill(st.t, st.b, st.f) + (chg.length ? ' ' + pill(chg.length + ' change' + (chg.length === 1 ? '' : 's') + ' vs ' + escAI(prevD), '#f0f0f4', '#8a8fa6') : '') + '</div>'
+        + '<div style="margin-top:16px;padding-top:14px;border-top:1px solid #f0f0f4;font-size:13.5px;color:#3f4157"><b>What to do:</b> ' + actA + '</div>'
+        + '</div>';
+      var blockC = kwNames.map(function (kn, idx) {
+        if (!kn) return '';
+        var any = todayRows.some(function (c) { return c['answer_kw' + (idx + 1)]; });
+        if (!any) return '';
+        var lines = todayRows.map(function (c) {
+          var raw = c['answer_kw' + (idx + 1)];
+          var mentioned = c['kw' + (idx + 1) + '_mentioned'];
+          var label = '<span style="display:inline-block;min-width:64px;font-size:11px;font-weight:700;color:#8a8fa6;letter-spacing:.04em">' + escAI(c.model).toUpperCase() + '</span>';
+          if (!raw) return '<div style="padding:9px 0;border-top:1px solid #f4f4f8;font-size:13px;color:#8a8fa6">' + label + 'no answer stored for this keyword today</div>';
+          var esc = escAI(raw);
+          var body = esc;
+          if (bizAI) {
+            var hay = normHL(esc), nee = normHL(escAI(bizAI));
+            var i = nee ? hay.indexOf(nee) : -1;
+            if (i !== -1) body = esc.slice(0, i) + '<b style="background:#e8f7e0;color:#2f7a12;padding:1px 5px;border-radius:4px">' + esc.slice(i, i + nee.length) + '</b>' + esc.slice(i + nee.length);
+          }
+          var miss = mentioned === 'no' ? ' ' + pill('you are not named', '#fde8e8', '#c0392b') : '';
+          return '<div style="padding:9px 0;border-top:1px solid #f4f4f8;font-size:13.5px;line-height:1.6;color:#3f4157">' + label + body + miss + '</div>';
         }).join('');
-        var hintSoV = entsSoV.length < 2 ? '<div style="font-size:12px;color:#8a8fa6;margin-top:6px">Add competitor names in your profile to compare share of voice.</div>' : '';
-        sovHtml = '<div style="margin-top:14px;background:#fff;border-radius:12px;padding:14px 16px"><div style="font-weight:700;color:#0F0638;margin-bottom:2px">Share of voice - who the AIs name</div><div style="font-size:12px;color:#8a8fa6;margin-bottom:8px">Counted across the stored AI answers in the table below. An answer counts once per business named in it.</div>' + rowsSoV + hintSoV + '</div>';
-      }
-      var rowsAI = dedupAI.slice(-40).reverse().map(function (c) {
-        var ansParts = [];
-        [['answer_kw1', 0], ['answer_kw2', 1], ['answer_kw3', 2]].forEach(function (pr) {
-          var a = c[pr[0]]; var kn = kwNames[pr[1]];
-          if (a && kn) ansParts.push('<div style="margin:6px 0"><b>' + escAI(kn) + ':</b> ' + escAI(a) + '</div>');
-        });
-        var toggleAttr = ansParts.length ? ' style="cursor:pointer" onclick="var n=this.nextElementSibling;if(n&&n.getAttribute(\'data-ans\')===\'1\'){n.style.display=n.style.display===\'none\'?\'\':\'none\';}" title="Click to see what each AI answered"' : '';
-        var ansRow = ansParts.length ? '<tr data-ans="1" style="display:none"><td colspan="6" style="padding:10px 14px;background:#f7f7fb;font-size:12px;color:#0F0638;border-bottom:1px solid #eee">' + ansParts.join('') + '</td></tr>' : '';
-        return '<tr' + toggleAttr + '><td style="padding:8px 10px;border-bottom:1px solid #eee">' + escAI(c.check_date) + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;font-weight:600">' + escAI(c.model) + (ansParts.length ? ' <span style="color:#8a8fa6;font-size:10px">&#9656; answers</span>' : '') + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center">' + chipAI(c.kw1_mentioned) + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center">' + chipAI(c.kw2_mentioned) + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center">' + chipAI(c.kw3_mentioned) + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;font-weight:700">' + c.score + '</td></tr>' + ansRow;
+        return '<div style="background:#fff;border-radius:14px;padding:18px 20px;border:1px solid #eceaf5;margin-top:14px">'
+          + '<div style="font-size:12px;color:#8a8fa6;margin-bottom:8px">A customer asks an AI assistant:</div>'
+          + '<div style="display:inline-block;background:#f7f7fb;border-radius:12px 12px 12px 4px;padding:9px 14px;font-size:14px;font-weight:600;color:#0F0638;margin-bottom:6px">' + escAI(kn) + '</div>'
+          + lines + '</div>';
       }).join('');
-      var kwHead = function (kn) { if (!kn) return '-'; var s = kn.length > 18 ? escAI(kn.slice(0, 17)) + '&#8230;' : escAI(kn); return '<span title="' + escAI(kn) + '">' + s + '</span>'; };
-      htmlAI = '<div class="signal-grid">' + cards + '</div>' + changesHtml + sovHtml +
-        '<div style="margin-top:18px;background:#fff;border-radius:12px;padding:16px;overflow-x:auto"><div style="font-weight:700;color:#0F0638;margin-bottom:4px">Daily checks - one row per AI model per day</div><div style="font-size:12px;color:#8a8fa6;margin-bottom:8px">Each day we ask every AI model about your tracked keywords. yes = your business appeared in that answer. Click a row to read the actual answers.</div>' +
-        '<table style="width:100%;border-collapse:collapse;font-size:13px;color:#0F0638"><thead><tr><th style="text-align:left;padding:8px 10px;color:#8a8fa6;font-size:11px">DATE</th><th style="text-align:left;padding:8px 10px;color:#8a8fa6;font-size:11px">MODEL</th><th style="padding:8px 10px;color:#8a8fa6;font-size:11px">' + kwHead(kwNames[0]) + '</th><th style="padding:8px 10px;color:#8a8fa6;font-size:11px">' + kwHead(kwNames[1]) + '</th><th style="padding:8px 10px;color:#8a8fa6;font-size:11px">' + kwHead(kwNames[2]) + '</th><th style="text-align:left;padding:8px 10px;color:#8a8fa6;font-size:11px">SCORE</th></tr></thead><tbody>' + rowsAI + '</tbody></table>' +
-        '<div style="font-size:12px;color:#8a8fa6;margin-top:10px">More AI models are being added - a model without a verified data source is not shown rather than guessed.</div></div>';
-    } else {
-      htmlAI = '<div class="empty-state"><i class="ti ti-brain"></i><p>Daily AI visibility checks are being set up for your account. Your first results appear within a day - no action needed on your side.</p></div>';
+      if (blockC) blockC = '<div style="margin-top:20px"><div style="font-weight:700;color:#0F0638;font-size:15px;margin-bottom:2px">What the AIs actually said about you today</div><div style="font-size:12.5px;color:#8a8fa6">These are the real answers we stored. Your name is highlighted where it appears.</div>' + blockC + '</div>';
+      var blockB = '';
+      if (ents.length) {
+        var ranked = ents.slice().sort(function (a, b) { return b.c - a.c; });
+        var rowsB = ranked.map(function (en, i) {
+          var d = en.p === null ? '<span style="color:#8a8fa6">first check</span>' : en.c > en.p ? '<span style="color:#3f9c1c;font-weight:700">&#9650; +' + (en.c - en.p) + '</span>' : en.c < en.p ? '<span style="color:#c0392b;font-weight:700">&#9660; ' + (en.c - en.p) + '</span>' : '<span style="color:#8a8fa6">no change</span>';
+          var p2 = ansToday.length ? Math.round(en.c / ansToday.length * 100) : 0;
+          return '<tr' + (en.own ? ' style="background:#faf9ff"' : '') + '>'
+            + '<td style="padding:9px 8px;border-bottom:1px solid #f4f4f8;color:#8a8fa6;font-weight:700">' + (i + 1) + '</td>'
+            + '<td style="padding:9px 8px;border-bottom:1px solid #f4f4f8;' + (en.own ? 'font-weight:700' : '') + '">' + escAI(en.n) + (en.own ? ' ' + pill('you', '#0F0638', '#ffffff') : '') + '</td>'
+            + '<td style="padding:9px 8px;border-bottom:1px solid #f4f4f8">' + en.c + ' of ' + ansToday.length + ' &middot; ' + p2 + '%</td>'
+            + '<td style="padding:9px 8px;border-bottom:1px solid #f4f4f8;font-size:12.5px">' + d + '</td></tr>';
+        }).join('');
+        var lead = '';
+        if (meAI && ranked.length > 1 && ansToday.length) {
+          var second = ranked.filter(function (en) { return !en.own; })[0];
+          if (second) { var gap = Math.round((meAI.c - second.c) / ansToday.length * 100); lead = gap > 0 ? 'You lead your closest tracked rival by <b>' + gap + ' percentage points</b>.' : gap === 0 ? 'You and ' + escAI(second.n) + ' are level.' : escAI(second.n) + ' is ahead of you by <b>' + Math.abs(gap) + ' percentage points</b>.'; }
+        }
+        blockB = '<div style="margin-top:20px;background:#fff;border-radius:14px;padding:18px 20px;border:1px solid #eceaf5">'
+          + '<div style="font-weight:700;color:#0F0638;font-size:15px;margin-bottom:2px">Who the AIs name most</div>'
+          + '<div style="font-size:12.5px;color:#8a8fa6;margin-bottom:10px">Across ' + ansToday.length + ' answers about your ' + kwNames.filter(Boolean).length + ' keywords, today. An answer counts once per business.</div>'
+          + '<table style="width:100%;border-collapse:collapse;font-size:13px;color:#0F0638"><thead><tr>'
+          + '<th style="text-align:left;padding:6px 8px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">#</th>'
+          + '<th style="text-align:left;padding:6px 8px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">BUSINESS</th>'
+          + '<th style="text-align:left;padding:6px 8px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">NAMED IN</th>'
+          + '<th style="text-align:left;padding:6px 8px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">VS ' + (prevD ? escAI(prevD) : 'PREVIOUS') + '</th>'
+          + '</tr></thead><tbody>' + rowsB + '</tbody></table>'
+          + (lead ? '<div style="font-size:13px;color:#3f4157;margin-top:11px">' + lead + '</div>' : '')
+          + (ents.length < 2 ? '<div style="font-size:12px;color:#8a8fa6;margin-top:8px">Add competitor names to your profile to compare share of voice.</div>' : '')
+          + '</div>';
+      }
+      var cards = todayRows.map(function (c) {
+        var measured = [1, 2, 3].filter(function (n) { return c['kw' + n + '_mentioned'] === 'yes' || c['kw' + n + '_mentioned'] === 'no'; }).length;
+        var configured = kwNames.filter(Boolean).length;
+        var sc = typeof c.score === 'number' ? c.score : 0;
+        var dot = sc >= 2 ? '#3f9c1c' : sc >= 1 ? '#d98b0f' : '#c0392b';
+        var missing = configured - measured;
+        return '<div style="flex:1;min-width:150px;background:#fff;border:1px solid #eceaf5;border-radius:12px;padding:14px 16px">'
+          + '<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:11px;font-weight:700;letter-spacing:.06em;color:#8a8fa6">' + escAI(c.model).toUpperCase() + '</div><div style="width:9px;height:9px;border-radius:50%;background:' + dot + '"></div></div>'
+          + '<div style="font-size:22px;font-weight:700;color:#0F0638;margin-top:5px">' + sc + ' of ' + (measured || configured) + '</div>'
+          + '<div style="font-size:11.5px;color:#8a8fa6;margin-top:2px">keywords you are named for</div>'
+          + (missing > 0 ? '<div style="font-size:11px;color:#a86b12;margin-top:6px">' + missing + ' keyword' + (missing === 1 ? '' : 's') + ' not returned by this model today, so it is not counted for or against you</div>' : '')
+          + '</div>';
+      }).join('');
+      var tbl = rowsAll.slice(-40).reverse().map(function (c) {
+        var chip = function (v) {
+          if (v === 'yes') return '<span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600;background:#e8f7e0;color:#3f9c1c">yes</span>';
+          if (v === 'no') return '<span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600;background:#fde8e8;color:#c0392b">no</span>';
+          return '<span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;background:#f0f0f4;color:#8a8fa6">not returned</span>';
+        };
+        return '<tr><td style="padding:7px 9px;border-bottom:1px solid #f4f4f8">' + escAI(c.check_date) + '</td><td style="padding:7px 9px;border-bottom:1px solid #f4f4f8;font-weight:600">' + escAI(c.model) + '</td><td style="padding:7px 9px;border-bottom:1px solid #f4f4f8;text-align:center">' + chip(c.kw1_mentioned) + '</td><td style="padding:7px 9px;border-bottom:1px solid #f4f4f8;text-align:center">' + chip(c.kw2_mentioned) + '</td><td style="padding:7px 9px;border-bottom:1px solid #f4f4f8;text-align:center">' + chip(c.kw3_mentioned) + '</td><td style="padding:7px 9px;border-bottom:1px solid #f4f4f8;font-weight:700">' + (typeof c.score === 'number' ? c.score : '-') + '</td></tr>';
+      }).join('');
+      var kwHead = function (kn) { if (!kn) return '-'; var s2 = kn.length > 18 ? escAI(kn.slice(0, 17)) + '&#8230;' : escAI(kn); return '<span title="' + escAI(kn) + '">' + s2 + '</span>'; };
+      var detail = '<div style="margin-top:20px;background:#fff;border-radius:14px;padding:18px 20px;border:1px solid #eceaf5;overflow-x:auto">'
+        + '<div style="font-weight:700;color:#0F0638;font-size:15px;margin-bottom:2px">Every check, day by day</div>'
+        + '<div style="font-size:12.5px;color:#8a8fa6;margin-bottom:10px">One row per AI model per day. yes = your business appeared in that answer.</div>'
+        + '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">' + cards + '</div>'
+        + '<table style="width:100%;border-collapse:collapse;font-size:13px;color:#0F0638"><thead><tr>'
+        + '<th style="text-align:left;padding:6px 9px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">DATE</th>'
+        + '<th style="text-align:left;padding:6px 9px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">MODEL</th>'
+        + '<th style="padding:6px 9px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">' + kwHead(kwNames[0]) + '</th>'
+        + '<th style="padding:6px 9px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">' + kwHead(kwNames[1]) + '</th>'
+        + '<th style="padding:6px 9px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">' + kwHead(kwNames[2]) + '</th>'
+        + '<th style="text-align:left;padding:6px 9px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">SCORE</th>'
+        + '</tr></thead><tbody>' + tbl + '</tbody></table>'
+        + '<div style="font-size:12px;color:#8a8fa6;margin-top:10px">More AI models are being added - a model without a verified data source is not shown rather than guessed.</div></div>';
+      htmlAI = blockA + blockC + blockB + detail;
     }
     var elAI = document.getElementById('ai-content');
     if (elAI) { elAI.innerHTML = htmlAI; } else { var scAI = document.getElementById('screen-ai'); if (scAI) { var oldAI = scAI.querySelector('.honest-inject'); if (oldAI) oldAI.remove(); scAI.insertAdjacentHTML('beforeend', '<div class="honest-inject">' + htmlAI + '</div>'); } }
