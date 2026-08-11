@@ -1818,6 +1818,23 @@
     var normHL = function (s) { return String(s == null ? '' : s).toLowerCase().replace(/[\u2019\u02BC\u00B4]/g, "'"); };
     var normAI = function (s) { return normHL(s).replace(/\bavenue\b/g, 'ave'); };
     var pill = function (txt, bg, fg) { return '<span style="display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;background:' + bg + ';color:' + fg + '">' + txt + '</span>'; };
+    var card = function (title, sub, inner, full) {
+      return '<div class="' + (full ? 'tmv-full' : '') + '" style="background:#fff;border:1px solid #eceaf5;border-radius:14px;padding:18px 20px">'
+        + (title ? '<div style="font-weight:700;color:#0F0638;font-size:15px">' + title + '</div>' : '')
+        + (sub ? '<div style="font-size:12px;color:#8a8fa6;margin-top:3px;line-height:1.5">' + sub + '</div>' : '')
+        + '<div style="margin-top:13px">' + inner + '</div></div>';
+    };
+    var donut = function (pct, big, small, color, box) {
+      var r = 34, c = 2 * Math.PI * r;
+      var p = Math.max(0, Math.min(100, pct));
+      var off = c * (1 - p / 100);
+      return '<svg width="' + box + '" height="' + box + '" viewBox="0 0 88 88" role="img">'
+        + '<circle cx="44" cy="44" r="34" fill="none" stroke="#f1f0f7" stroke-width="9"></circle>'
+        + '<circle cx="44" cy="44" r="34" fill="none" stroke="' + color + '" stroke-width="9" stroke-linecap="round" stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '" transform="rotate(-90 44 44)"></circle>'
+        + '<text x="44" y="' + (small ? 42 : 50) + '" text-anchor="middle" font-size="19" font-weight="700" fill="#0F0638">' + big + '</text>'
+        + (small ? '<text x="44" y="58" text-anchor="middle" font-size="9.5" fill="#8a8fa6">' + small + '</text>' : '')
+        + '</svg>';
+    };
     var htmlAI;
     if (!checks.length) {
       htmlAI = '<div class="empty-state"><i class="ti ti-brain"></i><p>Daily AI visibility checks are being set up for your account. Your first results appear within a day - no action needed on your side.</p></div>';
@@ -1834,15 +1851,17 @@
       var prevRows = prevD ? rowsAll.filter(function (c) { return c.check_date === prevD; }) : [];
       var ansOf = function (rows) { var a = []; rows.forEach(function (c) { [1, 2, 3].forEach(function (n) { var v = c['answer_kw' + n]; if (v) a.push({ t: v, k: n - 1, m: c.model }); }); }); return a; };
       var ansToday = ansOf(todayRows), ansPrev = ansOf(prevRows);
+      var cntIn = function (list, name) { var nn = normAI(name); if (!nn) return 0; return list.filter(function (a) { return normAI(a.t).indexOf(nn) !== -1; }).length; };
       var ents = [];
       if (bizAI) ents.push({ n: bizAI, own: true });
       [mrAI.competitor_1_name, mrAI.competitor_2_name, mrAI.competitor_3_name].forEach(function (cn) { if (cn) ents.push({ n: cn, own: false }); });
-      var cntIn = function (list, name) { var nn = normAI(name); if (!nn) return 0; return list.filter(function (a) { return normAI(a.t).indexOf(nn) !== -1; }).length; };
       ents.forEach(function (en) { en.c = cntIn(ansToday, en.n); en.p = ansPrev.length ? cntIn(ansPrev, en.n) : null; });
       var meAI = ents.filter(function (en) { return en.own; })[0];
       var rivals = ents.filter(function (en) { return !en.own; }).slice().sort(function (a, b) { return b.c - a.c; });
       var namedModels = todayRows.filter(function (c) { return c.kw1_mentioned === 'yes' || c.kw2_mentioned === 'yes' || c.kw3_mentioned === 'yes'; }).length;
       var totalModels = todayRows.length;
+      var kwCount = kwNames.filter(Boolean).length;
+      var pctMe = ansToday.length && meAI ? Math.round(meAI.c / ansToday.length * 100) : null;
       var chg = [];
       todayRows.forEach(function (c) {
         var p = prevRows.filter(function (x) { return x.model === c.model; })[0];
@@ -1854,22 +1873,101 @@
           if (p[f] === 'no' && c[f] === 'yes') chg.push({ up: true, m: c.model, k: kn });
         });
       });
-      var pctMe = ansToday.length && meAI ? Math.round(meAI.c / ansToday.length * 100) : null;
-      var kwCount = kwNames.filter(Boolean).length;
+      var st = pctMe === null ? { t: 'Measuring', b: '#f0f0f4', f: '#8a8fa6', c: '#8a8fa6' } : pctMe >= 70 ? { t: 'Strong position', b: '#e8f7e0', f: '#3f9c1c', c: '#3f9c1c' } : pctMe >= 40 ? { t: 'Mixed position', b: '#fff4e0', f: '#a86b12', c: '#d98b0f' } : { t: 'Weak position', b: '#fde8e8', f: '#c0392b', c: '#c0392b' };
       var headA = (totalModels && namedModels === totalModels ? 'All ' + totalModels + ' AI model' + (totalModels === 1 ? '' : 's') + ' name you' : namedModels + ' of ' + totalModels + ' AI models name you') + ' for at least one of your ' + kwCount + ' tracked keywords.';
       var subA = meAI && ansToday.length ? 'You are named in <b>' + meAI.c + ' of ' + ansToday.length + '</b> answers stored today.' : 'Answers start being stored from your next check.';
       if (meAI && ansToday.length && rivals.length && rivals[0].c > 0) subA += ' Your closest tracked rival, ' + escAI(rivals[0].n) + ', is named in ' + rivals[0].c + '.';
-      var st = pctMe === null ? { t: 'Measuring', b: '#f0f0f4', f: '#8a8fa6' } : pctMe >= 70 ? { t: 'Strong position', b: '#e8f7e0', f: '#3f9c1c' } : pctMe >= 40 ? { t: 'Mixed position', b: '#fff4e0', f: '#a86b12' } : { t: 'Weak position', b: '#fde8e8', f: '#c0392b' };
       var actA = chg.length
         ? (escAI(chg[0].m).toUpperCase() + (chg[0].up ? ' started naming you for "' + escAI(chg[0].k) + '". Nothing to do - this is movement in your favour.' : ' stopped naming you for "' + escAI(chg[0].k) + '". Watch it for a few days before acting; single-day moves are normal.'))
         : (prevD ? 'Nothing changed since ' + escAI(prevD) + '. No action needed today.' : 'This is your first check, so there is nothing to compare yet. We start tracking changes from tomorrow.');
-      var blockA = '<div style="background:#fff;border-radius:14px;padding:22px 24px;border:1px solid #eceaf5">'
+      var verdict = '<div class="tmv-full" style="background:#fff;border:1px solid #eceaf5;border-radius:14px;padding:20px 22px">'
+        + '<div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap">'
+        + (pctMe === null ? '' : '<div style="text-align:center;flex:0 0 auto">' + donut(pctMe, pctMe + '%', 'of answers', st.c, 104) + '<div style="font-size:11px;color:#8a8fa6;margin-top:4px">name your business</div></div>')
+        + '<div style="flex:1;min-width:280px">'
         + '<div style="font-size:11px;letter-spacing:.08em;color:#8a8fa6;font-weight:600">AI VISIBILITY &middot; ' + escAI(todayD) + '</div>'
-        + '<div style="font-size:23px;line-height:1.3;font-weight:700;margin:10px 0 8px;color:#0F0638">' + escAI(headA) + '</div>'
-        + '<div style="font-size:14px;color:#5c5f75;line-height:1.6">' + subA + '</div>'
-        + '<div style="margin:15px 0 0">' + pill(st.t, st.b, st.f) + (chg.length ? ' ' + pill(chg.length + ' change' + (chg.length === 1 ? '' : 's') + ' vs ' + escAI(prevD), '#f0f0f4', '#8a8fa6') : '') + '</div>'
-        + '<div style="margin-top:16px;padding-top:14px;border-top:1px solid #f0f0f4;font-size:13.5px;color:#3f4157"><b>What to do:</b> ' + actA + '</div>'
-        + '</div>';
+        + '<div style="font-size:22px;line-height:1.3;font-weight:700;margin:8px 0 7px;color:#0F0638">' + escAI(headA) + '</div>'
+        + '<div style="font-size:13.5px;color:#5c5f75;line-height:1.6">' + subA + '</div>'
+        + '<div style="margin-top:13px">' + pill(st.t, st.b, st.f) + (chg.length ? ' ' + pill(chg.length + ' change' + (chg.length === 1 ? '' : 's') + ' vs ' + escAI(prevD), '#f0f0f4', '#8a8fa6') : '') + '</div>'
+        + '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #f0f0f4;font-size:13px;color:#3f4157"><b>What to do:</b> ' + actA + '</div>'
+        + '</div></div></div>';
+      var ranked = ents.slice().sort(function (a, b) { return b.c - a.c; });
+      var maxC = ranked.length ? Math.max.apply(null, ranked.map(function (en) { return en.c; })) : 0;
+      var rowsB = ranked.map(function (en, i) {
+        var p2 = ansToday.length ? Math.round(en.c / ansToday.length * 100) : 0;
+        var w = maxC ? Math.round(en.c / maxC * 100) : 0;
+        var d = en.p === null ? '<span style="color:#c9c9d6">first check</span>' : en.c > en.p ? '<span style="color:#3f9c1c;font-weight:700">&#9650; +' + (en.c - en.p) + '</span>' : en.c < en.p ? '<span style="color:#c0392b;font-weight:700">&#9660; ' + (en.c - en.p) + '</span>' : '<span style="color:#8a8fa6">no change</span>';
+        return '<div style="margin-bottom:13px">'
+          + '<div style="display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:5px">'
+          + '<div style="color:#0F0638;' + (en.own ? 'font-weight:700' : '') + '"><span style="color:#c9c9d6;font-weight:700;margin-right:7px">' + (i + 1) + '</span>' + escAI(en.n) + (en.own ? ' ' + pill('you', '#0F0638', '#ffffff') : '') + '</div>'
+          + '<div style="color:#5c5f75;white-space:nowrap"><b>' + p2 + '%</b> <span style="color:#a9aabb;font-size:11.5px">' + en.c + '/' + ansToday.length + '</span></div>'
+          + '</div>'
+          + '<div style="height:8px;background:#f4f4f8;border-radius:99px;overflow:hidden"><div style="height:8px;width:' + w + '%;background:' + (en.own ? '#0F0638' : '#c5c3dc') + ';border-radius:99px"></div></div>'
+          + '<div style="font-size:11px;margin-top:4px">' + d + '</div>'
+          + '</div>';
+      }).join('');
+      var lead = '';
+      if (meAI && ranked.length > 1 && ansToday.length) {
+        var second = ranked.filter(function (en) { return !en.own; })[0];
+        if (second) { var gap = Math.round((meAI.c - second.c) / ansToday.length * 100); lead = gap > 0 ? 'You lead your closest tracked rival by <b>' + gap + ' percentage points</b>.' : gap === 0 ? 'You and ' + escAI(second.n) + ' are level.' : escAI(second.n) + ' is ahead of you by <b>' + Math.abs(gap) + ' percentage points</b>.'; }
+      }
+      var panelLeague = card('Who the AIs name most', 'Across ' + ansToday.length + ' answers about your ' + kwCount + ' keywords today. An answer counts once per business.', rowsB + (lead ? '<div style="font-size:12.5px;color:#3f4157;margin-top:4px;padding-top:11px;border-top:1px solid #f4f4f8">' + lead + '</div>' : '') + (ents.length < 2 ? '<div style="font-size:12px;color:#8a8fa6">Add competitor names to your profile to compare share of voice.</div>' : ''), false);
+      var ringHtml = todayRows.map(function (c) {
+        var measured = [1, 2, 3].filter(function (n) { return c['kw' + n + '_mentioned'] === 'yes' || c['kw' + n + '_mentioned'] === 'no'; }).length;
+        var sc = typeof c.score === 'number' ? c.score : 0;
+        var den = measured || kwCount;
+        var p = den ? Math.round(sc / den * 100) : 0;
+        var col = p >= 67 ? '#3f9c1c' : p >= 34 ? '#d98b0f' : '#c0392b';
+        var missing = kwCount - measured;
+        return '<div style="text-align:center">'
+          + donut(p, sc + '/' + den, '', col, 80)
+          + '<div style="font-size:11px;font-weight:700;letter-spacing:.05em;color:#0F0638;margin-top:3px">' + escAI(c.model).toUpperCase() + '</div>'
+          + (missing > 0 ? '<div style="font-size:10px;color:#a86b12;line-height:1.35;margin-top:2px">' + missing + ' kw not returned</div>' : '<div style="font-size:10px;color:#8a8fa6;margin-top:2px">all ' + den + ' measured</div>')
+          + '</div>';
+      }).join('');
+      var panelModels = card('Each AI model today', 'How many of your keywords each model names you for. A keyword a model did not return is left out of its total, not counted against you.', '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:12px">' + ringHtml + '</div>', false);
+      var trendPts = dates.map(function (d) {
+        var rws = rowsAll.filter(function (c) { return c.check_date === d; });
+        var a = ansOf(rws);
+        return { d: d, v: a.length ? Math.round(cntIn(a, bizAI) / a.length * 100) : null };
+      }).filter(function (p) { return p.v !== null; });
+      var trendInner;
+      if (trendPts.length >= 2) {
+        var W = 460, H = 120;
+        var stepX = W / (trendPts.length - 1);
+        var pts = trendPts.map(function (p, i) { return [i * stepX, H - (p.v / 100) * H]; });
+        var dPath = pts.map(function (c, i) { return (i ? 'L' : 'M') + c[0].toFixed(1) + ' ' + c[1].toFixed(1); }).join(' ');
+        var area = dPath + ' L' + W + ' ' + H + ' L0 ' + H + ' Z';
+        var dots = pts.map(function (c) { return '<circle cx="' + c[0].toFixed(1) + '" cy="' + c[1].toFixed(1) + '" r="3.5" fill="#0F0638"></circle>'; }).join('');
+        var first = trendPts[0], last = trendPts[trendPts.length - 1];
+        var delta = last.v - first.v;
+        trendInner = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" style="width:100%;height:120px;display:block">'
+          + '<path d="' + area + '" fill="#0F0638" opacity="0.07"></path>'
+          + '<path d="' + dPath + '" fill="none" stroke="#0F0638" stroke-width="2.5" stroke-linejoin="round"></path>'
+          + dots + '</svg>'
+          + '<div style="display:flex;justify-content:space-between;font-size:11px;color:#8a8fa6;margin-top:6px"><span>' + escAI(first.d) + '</span><span>' + escAI(last.d) + '</span></div>'
+          + '<div style="font-size:12.5px;color:#3f4157;margin-top:9px">You went from <b>' + first.v + '%</b> to <b>' + last.v + '%</b> of answers over ' + trendPts.length + ' checks' + (delta === 0 ? ', no net change.' : delta > 0 ? ', up ' + delta + ' points.' : ', down ' + Math.abs(delta) + ' points.') + '</div>';
+      } else {
+        trendInner = '<div style="height:120px;display:flex;align-items:center;justify-content:center;background:#faf9ff;border-radius:10px;color:#8a8fa6;font-size:12.5px;text-align:center;padding:0 18px">Your trend line appears after your second check. This is check ' + trendPts.length + '. We do not draw a line through a single point.</div>';
+      }
+      var panelTrend = card('Your visibility over time', 'The share of stored answers that name your business, one point per check day.', trendInner, false);
+      var gaps = [];
+      todayRows.forEach(function (c) {
+        [1, 2, 3].forEach(function (n) {
+          var kn = kwNames[n - 1];
+          if (!kn) return;
+          var v = c['kw' + n + '_mentioned'];
+          if (v === 'no') gaps.push({ miss: true, m: c.model, k: kn });
+          else if (v !== 'yes') gaps.push({ miss: false, m: c.model, k: kn });
+        });
+      });
+      var gapsInner = gaps.length
+        ? gaps.map(function (g) {
+            return '<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid #f4f4f8">'
+              + '<div style="width:8px;height:8px;border-radius:50%;background:' + (g.miss ? '#c0392b' : '#d6d5e0') + ';margin-top:5px;flex:0 0 auto"></div>'
+              + '<div style="font-size:12.5px;color:#3f4157;line-height:1.5">' + (g.miss ? '<b>' + escAI(g.m).toUpperCase() + '</b> does not name you when asked about "' + escAI(g.k) + '"' : '<b>' + escAI(g.m).toUpperCase() + '</b> returned no answer for "' + escAI(g.k) + '", so it is not counted either way') + '</div></div>';
+          }).join('') + '<div style="font-size:12px;color:#8a8fa6;margin-top:11px;padding-top:10px;border-top:1px solid #f4f4f8">Each red line is one place a customer could ask an AI and not hear about you.</div>'
+        : '<div style="padding:16px;background:#f4fbf0;border-radius:10px;font-size:13px;color:#2f7a12">You are named by every model on every tracked keyword today. Nothing to fix.</div>';
+      var panelGaps = card('Where you are missing', 'Every keyword and model combination where your name did not appear today.', gapsInner, false);
       var blockC = kwNames.map(function (kn, idx) {
         if (!kn) return '';
         var any = todayRows.some(function (c) { return c['answer_kw' + (idx + 1)]; });
@@ -1887,57 +1985,13 @@
             if (i !== -1) body = esc.slice(0, i) + '<b style="background:#e8f7e0;color:#2f7a12;padding:1px 5px;border-radius:4px">' + esc.slice(i, i + nee.length) + '</b>' + esc.slice(i + nee.length);
           }
           var miss = mentioned === 'no' ? ' ' + pill('you are not named', '#fde8e8', '#c0392b') : '';
-          return '<div style="padding:9px 0;border-top:1px solid #f4f4f8;font-size:13.5px;line-height:1.6;color:#3f4157">' + label + body + miss + '</div>';
+          return '<div style="padding:9px 0;border-top:1px solid #f4f4f8;font-size:13px;line-height:1.6;color:#3f4157">' + label + body + miss + '</div>';
         }).join('');
-        return '<div style="background:#fff;border-radius:14px;padding:18px 20px;border:1px solid #eceaf5;margin-top:14px">'
-          + '<div style="font-size:12px;color:#8a8fa6;margin-bottom:8px">A customer asks an AI assistant:</div>'
-          + '<div style="display:inline-block;background:#f7f7fb;border-radius:12px 12px 12px 4px;padding:9px 14px;font-size:14px;font-weight:600;color:#0F0638;margin-bottom:6px">' + escAI(kn) + '</div>'
+        return '<div style="background:#fcfcff;border:1px solid #f0eff8;border-radius:12px;padding:14px 16px">'
+          + '<div style="display:inline-block;background:#f0eff8;border-radius:12px 12px 12px 4px;padding:8px 13px;font-size:13.5px;font-weight:600;color:#0F0638;margin-bottom:4px">' + escAI(kn) + '</div>'
           + lines + '</div>';
-      }).join('');
-      if (blockC) blockC = '<div style="margin-top:20px"><div style="font-weight:700;color:#0F0638;font-size:15px;margin-bottom:2px">What the AIs actually said about you today</div><div style="font-size:12.5px;color:#8a8fa6">These are the real answers we stored. Your name is highlighted where it appears.</div>' + blockC + '</div>';
-      var blockB = '';
-      if (ents.length) {
-        var ranked = ents.slice().sort(function (a, b) { return b.c - a.c; });
-        var rowsB = ranked.map(function (en, i) {
-          var d = en.p === null ? '<span style="color:#8a8fa6">first check</span>' : en.c > en.p ? '<span style="color:#3f9c1c;font-weight:700">&#9650; +' + (en.c - en.p) + '</span>' : en.c < en.p ? '<span style="color:#c0392b;font-weight:700">&#9660; ' + (en.c - en.p) + '</span>' : '<span style="color:#8a8fa6">no change</span>';
-          var p2 = ansToday.length ? Math.round(en.c / ansToday.length * 100) : 0;
-          return '<tr' + (en.own ? ' style="background:#faf9ff"' : '') + '>'
-            + '<td style="padding:9px 8px;border-bottom:1px solid #f4f4f8;color:#8a8fa6;font-weight:700">' + (i + 1) + '</td>'
-            + '<td style="padding:9px 8px;border-bottom:1px solid #f4f4f8;' + (en.own ? 'font-weight:700' : '') + '">' + escAI(en.n) + (en.own ? ' ' + pill('you', '#0F0638', '#ffffff') : '') + '</td>'
-            + '<td style="padding:9px 8px;border-bottom:1px solid #f4f4f8">' + en.c + ' of ' + ansToday.length + ' &middot; ' + p2 + '%</td>'
-            + '<td style="padding:9px 8px;border-bottom:1px solid #f4f4f8;font-size:12.5px">' + d + '</td></tr>';
-        }).join('');
-        var lead = '';
-        if (meAI && ranked.length > 1 && ansToday.length) {
-          var second = ranked.filter(function (en) { return !en.own; })[0];
-          if (second) { var gap = Math.round((meAI.c - second.c) / ansToday.length * 100); lead = gap > 0 ? 'You lead your closest tracked rival by <b>' + gap + ' percentage points</b>.' : gap === 0 ? 'You and ' + escAI(second.n) + ' are level.' : escAI(second.n) + ' is ahead of you by <b>' + Math.abs(gap) + ' percentage points</b>.'; }
-        }
-        blockB = '<div style="margin-top:20px;background:#fff;border-radius:14px;padding:18px 20px;border:1px solid #eceaf5">'
-          + '<div style="font-weight:700;color:#0F0638;font-size:15px;margin-bottom:2px">Who the AIs name most</div>'
-          + '<div style="font-size:12.5px;color:#8a8fa6;margin-bottom:10px">Across ' + ansToday.length + ' answers about your ' + kwNames.filter(Boolean).length + ' keywords, today. An answer counts once per business.</div>'
-          + '<table style="width:100%;border-collapse:collapse;font-size:13px;color:#0F0638"><thead><tr>'
-          + '<th style="text-align:left;padding:6px 8px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">#</th>'
-          + '<th style="text-align:left;padding:6px 8px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">BUSINESS</th>'
-          + '<th style="text-align:left;padding:6px 8px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">NAMED IN</th>'
-          + '<th style="text-align:left;padding:6px 8px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">VS ' + (prevD ? escAI(prevD) : 'PREVIOUS') + '</th>'
-          + '</tr></thead><tbody>' + rowsB + '</tbody></table>'
-          + (lead ? '<div style="font-size:13px;color:#3f4157;margin-top:11px">' + lead + '</div>' : '')
-          + (ents.length < 2 ? '<div style="font-size:12px;color:#8a8fa6;margin-top:8px">Add competitor names to your profile to compare share of voice.</div>' : '')
-          + '</div>';
-      }
-      var cards = todayRows.map(function (c) {
-        var measured = [1, 2, 3].filter(function (n) { return c['kw' + n + '_mentioned'] === 'yes' || c['kw' + n + '_mentioned'] === 'no'; }).length;
-        var configured = kwNames.filter(Boolean).length;
-        var sc = typeof c.score === 'number' ? c.score : 0;
-        var dot = sc >= 2 ? '#3f9c1c' : sc >= 1 ? '#d98b0f' : '#c0392b';
-        var missing = configured - measured;
-        return '<div style="flex:1;min-width:150px;background:#fff;border:1px solid #eceaf5;border-radius:12px;padding:14px 16px">'
-          + '<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:11px;font-weight:700;letter-spacing:.06em;color:#8a8fa6">' + escAI(c.model).toUpperCase() + '</div><div style="width:9px;height:9px;border-radius:50%;background:' + dot + '"></div></div>'
-          + '<div style="font-size:22px;font-weight:700;color:#0F0638;margin-top:5px">' + sc + ' of ' + (measured || configured) + '</div>'
-          + '<div style="font-size:11.5px;color:#8a8fa6;margin-top:2px">keywords you are named for</div>'
-          + (missing > 0 ? '<div style="font-size:11px;color:#a86b12;margin-top:6px">' + missing + ' keyword' + (missing === 1 ? '' : 's') + ' not returned by this model today, so it is not counted for or against you</div>' : '')
-          + '</div>';
-      }).join('');
+      }).filter(Boolean).join('');
+      var panelAnswers = blockC ? card('What the AIs actually said about you today', 'The real answers we stored, one card per question. Your name is highlighted where it appears.', '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;align-items:start">' + blockC + '</div>', true) : '';
       var tbl = rowsAll.slice(-40).reverse().map(function (c) {
         var chip = function (v) {
           if (v === 'yes') return '<span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600;background:#e8f7e0;color:#3f9c1c">yes</span>';
@@ -1947,20 +2001,18 @@
         return '<tr><td style="padding:7px 9px;border-bottom:1px solid #f4f4f8">' + escAI(c.check_date) + '</td><td style="padding:7px 9px;border-bottom:1px solid #f4f4f8;font-weight:600">' + escAI(c.model) + '</td><td style="padding:7px 9px;border-bottom:1px solid #f4f4f8;text-align:center">' + chip(c.kw1_mentioned) + '</td><td style="padding:7px 9px;border-bottom:1px solid #f4f4f8;text-align:center">' + chip(c.kw2_mentioned) + '</td><td style="padding:7px 9px;border-bottom:1px solid #f4f4f8;text-align:center">' + chip(c.kw3_mentioned) + '</td><td style="padding:7px 9px;border-bottom:1px solid #f4f4f8;font-weight:700">' + (typeof c.score === 'number' ? c.score : '-') + '</td></tr>';
       }).join('');
       var kwHead = function (kn) { if (!kn) return '-'; var s2 = kn.length > 18 ? escAI(kn.slice(0, 17)) + '&#8230;' : escAI(kn); return '<span title="' + escAI(kn) + '">' + s2 + '</span>'; };
-      var detail = '<div style="margin-top:20px;background:#fff;border-radius:14px;padding:18px 20px;border:1px solid #eceaf5;overflow-x:auto">'
-        + '<div style="font-weight:700;color:#0F0638;font-size:15px;margin-bottom:2px">Every check, day by day</div>'
-        + '<div style="font-size:12.5px;color:#8a8fa6;margin-bottom:10px">One row per AI model per day. yes = your business appeared in that answer.</div>'
-        + '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">' + cards + '</div>'
-        + '<table style="width:100%;border-collapse:collapse;font-size:13px;color:#0F0638"><thead><tr>'
+      var tableInner = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;color:#0F0638"><thead><tr>'
         + '<th style="text-align:left;padding:6px 9px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">DATE</th>'
         + '<th style="text-align:left;padding:6px 9px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">MODEL</th>'
         + '<th style="padding:6px 9px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">' + kwHead(kwNames[0]) + '</th>'
         + '<th style="padding:6px 9px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">' + kwHead(kwNames[1]) + '</th>'
         + '<th style="padding:6px 9px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">' + kwHead(kwNames[2]) + '</th>'
         + '<th style="text-align:left;padding:6px 9px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">SCORE</th>'
-        + '</tr></thead><tbody>' + tbl + '</tbody></table>'
-        + '<div style="font-size:12px;color:#8a8fa6;margin-top:10px">More AI models are being added - a model without a verified data source is not shown rather than guessed.</div></div>';
-      htmlAI = blockA + blockC + blockB + detail;
+        + '</tr></thead><tbody>' + tbl + '</tbody></table></div>'
+        + '<div style="font-size:12px;color:#8a8fa6;margin-top:10px">More AI models are being added - a model without a verified data source is not shown rather than guessed.</div>';
+      var panelTable = card('Every check, day by day', 'One row per AI model per day. yes = your business appeared in that answer.', tableInner, true);
+      htmlAI = '<style>.tmv-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.tmv-grid>.tmv-full{grid-column:1/-1}@media(max-width:900px){.tmv-grid{grid-template-columns:1fr}}</style><div class="tmv-grid">'
+        + verdict + panelLeague + panelModels + panelTrend + panelGaps + panelAnswers + panelTable + '</div>';
     }
     var elAI = document.getElementById('ai-content');
     if (elAI) { elAI.innerHTML = htmlAI; } else { var scAI = document.getElementById('screen-ai'); if (scAI) { var oldAI = scAI.querySelector('.honest-inject'); if (oldAI) oldAI.remove(); scAI.insertAdjacentHTML('beforeend', '<div class="honest-inject">' + htmlAI + '</div>'); } }
