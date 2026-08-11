@@ -1811,28 +1811,58 @@
       return;
     }
     const checks = state.data.aiVisibilityChecks || state.data.ai_visibility_checks || [];
+    var mrAI = state.data.masterRecord;
+    var kwNames = [mrAI.target_keyword_1 || '', mrAI.target_keyword_2 || '', mrAI.target_keyword_3 || ''];
+    var escAI = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
     var htmlAI;
     if (checks.length) {
-      var lastByModel = {};
-      checks.forEach(function (c) { lastByModel[c.model] = c; });
-      var cards = Object.keys(lastByModel).map(function (m) {
-        var c = lastByModel[m];
-        var maxKw = ['kw1_mentioned', 'kw2_mentioned', 'kw3_mentioned'].filter(function (k) { return c[k] === 'yes' || c[k] === 'no'; }).length;
+      var byMD = {};
+      var orderAI = [];
+      checks.forEach(function (c) { var k = c.model + '|' + c.check_date; if (!byMD[k]) orderAI.push(k); byMD[k] = c; });
+      var modelsAI = {};
+      orderAI.forEach(function (k) { var c = byMD[k]; (modelsAI[c.model] = modelsAI[c.model] || []).push(c); });
+      var cards = Object.keys(modelsAI).map(function (m) {
+        var arr = modelsAI[m]; var c = arr[arr.length - 1]; var prev = arr.length > 1 ? arr[arr.length - 2] : null;
+        var maxKw = ['kw1_mentioned', 'kw2_mentioned', 'kw3_mentioned'].filter(function (k) { return c[k] === 'yes' || c[k] === 'no'; }).length || 3;
         var dot = c.score >= 2 ? 'green' : c.score >= 1 ? 'amber' : 'red';
-        return '<div class="signal-card"><div class="signal-card-header"><div class="signal-name">' + m.charAt(0).toUpperCase() + m.slice(1) + ' Visibility</div><div class="rag-dot ' + dot + '"></div></div><div class="signal-value">' + c.score + '/' + (maxKw || 3) + '</div><div style="font-size:12px;color:#8a8fa6;margin-top:4px">Keywords mentioned - checked ' + c.check_date + '</div></div>';
+        var delta = '';
+        if (prev && typeof prev.score === 'number' && typeof c.score === 'number') {
+          var d = c.score - prev.score;
+          delta = d > 0 ? '<span style="color:#3f9c1c;font-weight:700;font-size:15px"> &#9650; +' + d + '</span>' : d < 0 ? '<span style="color:#c0392b;font-weight:700;font-size:15px"> &#9660; ' + d + '</span>' : '<span style="color:#8a8fa6;font-size:12px"> unchanged</span>';
+        }
+        return '<div class="signal-card"><div class="signal-card-header"><div class="signal-name">' + escAI(m).toUpperCase() + '</div><div class="rag-dot ' + dot + '"></div></div><div class="signal-value">' + c.score + '/' + maxKw + delta + '</div><div style="font-size:12px;color:#8a8fa6;margin-top:4px">Keywords you appear for - ' + escAI(c.check_date) + (prev ? '' : ' - first check') + '</div></div>';
       }).join('');
+      var changesAI = [];
+      Object.keys(modelsAI).forEach(function (m) {
+        var arr = modelsAI[m]; if (arr.length < 2) return; var c = arr[arr.length - 1], p = arr[arr.length - 2];
+        [['kw1_mentioned', 0], ['kw2_mentioned', 1], ['kw3_mentioned', 2]].forEach(function (pr) {
+          var f = pr[0], kn = kwNames[pr[1]]; if (!kn) return;
+          if (p[f] === 'no' && c[f] === 'yes') changesAI.push('<div style="color:#3f9c1c">&#9650; ' + escAI(m).toUpperCase() + ' now mentions you for &quot;' + escAI(kn) + '&quot;</div>');
+          if (p[f] === 'yes' && c[f] === 'no') changesAI.push('<div style="color:#c0392b">&#9660; ' + escAI(m).toUpperCase() + ' stopped mentioning you for &quot;' + escAI(kn) + '&quot;</div>');
+        });
+      });
+      var changesHtml = changesAI.length ? '<div style="margin-top:14px;background:#fff;border-radius:12px;padding:14px 16px"><div style="font-weight:700;color:#0F0638;margin-bottom:6px">Changes vs previous check</div><div style="font-size:13px;line-height:1.8">' + changesAI.join('') + '</div></div>' : '';
       var chipAI = function (v) {
         if (v === 'yes') return '<span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;background:#e8f7e0;color:#3f9c1c">yes</span>';
         if (v === 'no') return '<span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;background:#fde8e8;color:#c0392b">no</span>';
         return '<span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;background:#f0f0f4;color:#8a8fa6">-</span>';
       };
-      var rowsAI = checks.slice(-30).reverse().map(function (c) {
-        return '<tr><td style="padding:8px 10px;border-bottom:1px solid #eee">' + c.check_date + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee">' + c.model + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center">' + chipAI(c.kw1_mentioned) + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center">' + chipAI(c.kw2_mentioned) + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center">' + chipAI(c.kw3_mentioned) + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;font-weight:700">' + c.score + '</td></tr>';
+      var dedupAI = orderAI.map(function (k) { return byMD[k]; });
+      var rowsAI = dedupAI.slice(-40).reverse().map(function (c) {
+        var ansParts = [];
+        [['answer_kw1', 0], ['answer_kw2', 1], ['answer_kw3', 2]].forEach(function (pr) {
+          var a = c[pr[0]]; var kn = kwNames[pr[1]];
+          if (a && kn) ansParts.push('<div style="margin:6px 0"><b>' + escAI(kn) + ':</b> ' + escAI(a) + '</div>');
+        });
+        var toggleAttr = ansParts.length ? ' style="cursor:pointer" onclick="var n=this.nextElementSibling;if(n&&n.getAttribute(\'data-ans\')===\'1\'){n.style.display=n.style.display===\'none\'?\'\':\'none\';}" title="Click to see what each AI answered"' : '';
+        var ansRow = ansParts.length ? '<tr data-ans="1" style="display:none"><td colspan="6" style="padding:10px 14px;background:#f7f7fb;font-size:12px;color:#0F0638;border-bottom:1px solid #eee">' + ansParts.join('') + '</td></tr>' : '';
+        return '<tr' + toggleAttr + '><td style="padding:8px 10px;border-bottom:1px solid #eee">' + escAI(c.check_date) + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;font-weight:600">' + escAI(c.model) + (ansParts.length ? ' <span style="color:#8a8fa6;font-size:10px">&#9656; answers</span>' : '') + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center">' + chipAI(c.kw1_mentioned) + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center">' + chipAI(c.kw2_mentioned) + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center">' + chipAI(c.kw3_mentioned) + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;font-weight:700">' + c.score + '</td></tr>' + ansRow;
       }).join('');
-      htmlAI = '<div class="signal-grid">' + cards + '</div>' +
-        '<div style="margin-top:18px;background:#fff;border-radius:12px;padding:16px;overflow-x:auto"><div style="font-weight:700;color:#0F0638;margin-bottom:8px">Daily checks - last 30</div>' +
-        '<table style="width:100%;border-collapse:collapse;font-size:13px;color:#0F0638"><thead><tr><th style="text-align:left;padding:8px 10px;color:#8a8fa6;font-size:11px">DATE</th><th style="text-align:left;padding:8px 10px;color:#8a8fa6;font-size:11px">MODEL</th><th style="padding:8px 10px;color:#8a8fa6;font-size:11px">KW1</th><th style="padding:8px 10px;color:#8a8fa6;font-size:11px">KW2</th><th style="padding:8px 10px;color:#8a8fa6;font-size:11px">KW3</th><th style="text-align:left;padding:8px 10px;color:#8a8fa6;font-size:11px">SCORE</th></tr></thead><tbody>' + rowsAI + '</tbody></table>' +
-        '<div style="font-size:12px;color:#8a8fa6;margin-top:10px">A yes means your business appeared in that AI model' + String.fromCharCode(39) + 's answer for your keyword on that day. More AI models are being added - a model without a verified data source is not shown rather than guessed.</div></div>';
+      var kwHead = function (kn) { if (!kn) return '-'; var s = kn.length > 18 ? kn.slice(0, 17) + '&#8230;' : kn; return '<span title="' + escAI(kn) + '">' + escAI(s) + '</span>'; };
+      htmlAI = '<div class="signal-grid">' + cards + '</div>' + changesHtml +
+        '<div style="margin-top:18px;background:#fff;border-radius:12px;padding:16px;overflow-x:auto"><div style="font-weight:700;color:#0F0638;margin-bottom:4px">Daily checks - one row per AI model per day</div><div style="font-size:12px;color:#8a8fa6;margin-bottom:8px">Each day we ask every AI model about your tracked keywords. yes = your business appeared in that answer. Click a row to read the actual answers.</div>' +
+        '<table style="width:100%;border-collapse:collapse;font-size:13px;color:#0F0638"><thead><tr><th style="text-align:left;padding:8px 10px;color:#8a8fa6;font-size:11px">DATE</th><th style="text-align:left;padding:8px 10px;color:#8a8fa6;font-size:11px">MODEL</th><th style="padding:8px 10px;color:#8a8fa6;font-size:11px">' + kwHead(kwNames[0]) + '</th><th style="padding:8px 10px;color:#8a8fa6;font-size:11px">' + kwHead(kwNames[1]) + '</th><th style="padding:8px 10px;color:#8a8fa6;font-size:11px">' + kwHead(kwNames[2]) + '</th><th style="text-align:left;padding:8px 10px;color:#8a8fa6;font-size:11px">SCORE</th></tr></thead><tbody>' + rowsAI + '</tbody></table>' +
+        '<div style="font-size:12px;color:#8a8fa6;margin-top:10px">More AI models are being added - a model without a verified data source is not shown rather than guessed.</div></div>';
     } else {
       htmlAI = '<div class="empty-state"><i class="ti ti-brain"></i><p>Daily AI visibility checks are being set up for your account. Your first results appear within a day - no action needed on your side.</p></div>';
     }
