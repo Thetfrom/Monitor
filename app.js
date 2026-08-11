@@ -57,7 +57,7 @@
         status: urlData.masterRecord.status,
         businessName: urlData.masterRecord.business_name,
       };
-      state.data = { masterRecord: urlData.masterRecord, snapshots: urlData.snapshots || [] };
+      state.data = { masterRecord: urlData.masterRecord, snapshots: urlData.snapshots || [], aiVisibilityChecks: urlData.ai_visibility_checks || [] };
       onDataReady();
       return;
     }
@@ -88,7 +88,7 @@
           status: msg.masterRecord.status,
           businessName: msg.masterRecord.business_name,
         };
-        state.data = { masterRecord: msg.masterRecord, snapshots: msg.snapshots };
+        state.data = { masterRecord: msg.masterRecord, snapshots: msg.snapshots, aiVisibilityChecks: msg.ai_visibility_checks || [] };
         onDataReady();
         return;
       }
@@ -1807,14 +1807,35 @@
   function renderAI() {
     const planAI = state.data.masterRecord.plan;
     if (planAI !== 'agency') {
-      renderUpgradePrompt('screen-ai', 'AI Visibility', 'See how your business appears when people ask ChatGPT, Gemini, or Perplexity about your category. Available on Agency.');
+      renderUpgradePrompt('screen-ai', 'AI Visibility', 'See how your business appears when people ask AI models about your category. Available on Agency.');
       return;
     }
-    const currAI = latest();
-    const gv = currAI ? currAI.ai_visibility_google : null;
-    const cv = currAI ? currAI.ai_visibility_chatgpt : null;
-    const hasAI = (gv === 'Present' || gv === 'Absent' || cv === 'Present' || cv === 'Absent');
-    const htmlAI = hasAI ? '<div class="signal-grid"><div class="signal-card"><div class="signal-card-header"><div class="signal-name">Google AI Visibility</div><div class="rag-dot ' + (gv === 'Present' ? 'green' : gv === 'Absent' ? 'red' : 'gray') + '"></div></div><div class="signal-value" style="font-size:16px">' + (gv || '-') + '</div></div><div class="signal-card"><div class="signal-card-header"><div class="signal-name">ChatGPT Visibility</div><div class="rag-dot ' + (cv === 'Present' ? 'green' : cv === 'Absent' ? 'red' : 'gray') + '"></div></div><div class="signal-value" style="font-size:16px">' + (cv || '-') + '</div></div></div>' : '<div class="empty-state"><i class="ti ti-brain"></i><p>AI visibility measurement is being set up for your account. It arrives with an upcoming monthly report - no action needed on your side.</p></div>';
+    const checks = state.data.aiVisibilityChecks || state.data.ai_visibility_checks || [];
+    var htmlAI;
+    if (checks.length) {
+      var lastByModel = {};
+      checks.forEach(function (c) { lastByModel[c.model] = c; });
+      var cards = Object.keys(lastByModel).map(function (m) {
+        var c = lastByModel[m];
+        var maxKw = ['kw1_mentioned', 'kw2_mentioned', 'kw3_mentioned'].filter(function (k) { return c[k] === 'yes' || c[k] === 'no'; }).length;
+        var dot = c.score >= 2 ? 'green' : c.score >= 1 ? 'amber' : 'red';
+        return '<div class="signal-card"><div class="signal-card-header"><div class="signal-name">' + m.charAt(0).toUpperCase() + m.slice(1) + ' Visibility</div><div class="rag-dot ' + dot + '"></div></div><div class="signal-value">' + c.score + '/' + (maxKw || 3) + '</div><div style="font-size:12px;color:#8a8fa6;margin-top:4px">Keywords mentioned - checked ' + c.check_date + '</div></div>';
+      }).join('');
+      var chipAI = function (v) {
+        if (v === 'yes') return '<span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;background:#e8f7e0;color:#3f9c1c">yes</span>';
+        if (v === 'no') return '<span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;background:#fde8e8;color:#c0392b">no</span>';
+        return '<span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;background:#f0f0f4;color:#8a8fa6">-</span>';
+      };
+      var rowsAI = checks.slice(-30).reverse().map(function (c) {
+        return '<tr><td style="padding:8px 10px;border-bottom:1px solid #eee">' + c.check_date + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee">' + c.model + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center">' + chipAI(c.kw1_mentioned) + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center">' + chipAI(c.kw2_mentioned) + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center">' + chipAI(c.kw3_mentioned) + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;font-weight:700">' + c.score + '</td></tr>';
+      }).join('');
+      htmlAI = '<div class="signal-grid">' + cards + '</div>' +
+        '<div style="margin-top:18px;background:#fff;border-radius:12px;padding:16px;overflow-x:auto"><div style="font-weight:700;color:#0F0638;margin-bottom:8px">Daily checks - last 30</div>' +
+        '<table style="width:100%;border-collapse:collapse;font-size:13px;color:#0F0638"><thead><tr><th style="text-align:left;padding:8px 10px;color:#8a8fa6;font-size:11px">DATE</th><th style="text-align:left;padding:8px 10px;color:#8a8fa6;font-size:11px">MODEL</th><th style="padding:8px 10px;color:#8a8fa6;font-size:11px">KW1</th><th style="padding:8px 10px;color:#8a8fa6;font-size:11px">KW2</th><th style="padding:8px 10px;color:#8a8fa6;font-size:11px">KW3</th><th style="text-align:left;padding:8px 10px;color:#8a8fa6;font-size:11px">SCORE</th></tr></thead><tbody>' + rowsAI + '</tbody></table>' +
+        '<div style="font-size:12px;color:#8a8fa6;margin-top:10px">A yes means your business appeared in that AI model' + String.fromCharCode(39) + 's answer for your keyword on that day. More AI models are being added - a model without a verified data source is not shown rather than guessed.</div></div>';
+    } else {
+      htmlAI = '<div class="empty-state"><i class="ti ti-brain"></i><p>Daily AI visibility checks are being set up for your account. Your first results appear within a day - no action needed on your side.</p></div>';
+    }
     var elAI = document.getElementById('ai-content');
     if (elAI) { elAI.innerHTML = htmlAI; } else { var scAI = document.getElementById('screen-ai'); if (scAI) { var oldAI = scAI.querySelector('.honest-inject'); if (oldAI) oldAI.remove(); scAI.insertAdjacentHTML('beforeend', '<div class="honest-inject">' + htmlAI + '</div>'); } }
   }
