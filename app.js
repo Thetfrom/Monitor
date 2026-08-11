@@ -182,7 +182,7 @@
       document.getElementById('streak-pill').style.background = 'rgba(127,212,75,0.15)';
       document.getElementById('streak-pill').style.color = '#7FD44B';
     } else {
-      streakEl.textContent = 'Month ' + snapshots.length;
+      streakEl.textContent = snapshots.length ? 'Report #' + snapshots[snapshots.length - 1].report_number : 'Welcome';
     }
     const badge = document.getElementById('plan-badge');
     badge.textContent = plan.charAt(0).toUpperCase() + plan.slice(1);
@@ -639,7 +639,7 @@
           <span class="goal-card-title"><i class="ti ti-target"></i> Presence Goal</span>
           <button class="goal-edit-btn" id="goal-edit-btn">${reached ? 'Set new goal' : 'Edit goal'}</button>
         </div>
-        <p class="goal-explain">Your Presence Score blends every signal we track into one number out of 100. Set a target to work toward - we show how close you are and flag the month you hit it.</p>
+        <p class="goal-explain">Your Presence Score averages your measured signals into one number out of 100. Set a target to work toward - we show how close you are and flag the month you hit it.</p>
         <div class="goal-bar"><div class="goal-fill ${reached ? 'reached' : ''}" style="width:${pct}%"></div></div>
         <div class="goal-stat">${reached
           ? `<strong>Goal reached</strong> - you hit ${goal}.`
@@ -695,6 +695,8 @@
     }
 
     const score = calcPresenceScore(curr, plan);
+    const fieldsAllPS = getSignalFields(plan);
+    const measuredPS = fieldsAllPS.filter(f => curr[f.field] !== null && curr[f.field] !== undefined).length;
     const prevScore = prevSnap ? calcPresenceScore(prevSnap, plan) : null;
     const scoreDelta = prevScore !== null ? score - prevScore : null;
     const days = daysUntilNext(mr.run_day);
@@ -715,7 +717,7 @@
           ${velocity !== null ? `<span class="velocity-chip ${velocity >= 0 ? 'positive' : 'negative'}">${velocity > 0 ? '+' : ''}${velocity} pts/mo avg</span>` : ''}
           ${streak >= 2 ? `<span class="streak-chip">🔥 ${streak}-month streak</span>` : ''}
         </div>
-        <div class="presence-meta">Report #${curr.report_number} · ${monthLabel(curr.snapshot_date)}</div>
+        <div class="presence-meta">Report #${curr.report_number} · ${monthLabel(curr.snapshot_date)} · ${measuredPS} of ${fieldsAllPS.length} signals measured</div>
       </div>
       <div class="presence-right">
         <div class="report-number-badge">Report #${curr.report_number}</div>
@@ -746,7 +748,7 @@
         <div class="stat-card">
           <div class="stat-label">${sf.label}</div>
           <div class="stat-value">${v !== null && v !== undefined ? v + sf.suffix : '<span class="null-value">-</span>'}</div>
-          ${arrow ? `<div class="stat-delta ${dc}">${arrow}</div>` : '<div class="stat-delta neutral">First report</div>'}
+          ${arrow ? `<div class="stat-delta ${dc}">${arrow}</div>` : `<div class="stat-delta neutral">${v !== null && v !== undefined ? 'First report' : 'Not measured'}</div>`}
         </div>
       `;
     }).join('');
@@ -857,7 +859,8 @@
 
   function renderPriorityAction(curr, prevSnap, plan) {
     const container = document.getElementById('priority-action-section');
-    const action = getPriorityAction(curr, prevSnap, plan);
+    let action = getPriorityAction(curr, prevSnap, plan);
+    if (curr.recommended_action) action = { icon: 'ti-sparkles', title: "This month's priority action", desc: curr.recommended_action };
     container.innerHTML = `
       <div class="priority-action-card">
         <div class="priority-icon"><i class="ti ${action.icon}"></i></div>
@@ -896,21 +899,21 @@
         <div class="agency-teasers-label"><i class="ti ti-lock"></i> Agency Plan - 3 more signal categories tracked</div>
         <div class="signal-grid" style="margin-top:8px">
           <div class="signal-card teaser-card" onclick="window.__navigate('upgrade','Competitor Tracker')">
-            <div class="signal-card-header"><div class="signal-name">Competitor #1 Rank</div><div class="rag-dot green"></div></div>
-            <div class="signal-value teaser-blur">#5</div>
-            <div class="signal-delta up teaser-blur"><i class="ti ti-arrow-up"></i>1 from last</div>
+            <div class="signal-card-header"><div class="signal-name">Competitor #1 Rank</div><div class="rag-dot gray"></div></div>
+            <div class="signal-value teaser-blur">●●●</div>
+            <div class="teaser-note">Tracked on Agency</div>
             <div class="teaser-cta">Unlock Competitors →</div>
           </div>
           <div class="signal-card teaser-card" onclick="window.__navigate('upgrade','AI Visibility')">
-            <div class="signal-card-header"><div class="signal-name">Google AI Visibility</div><div class="rag-dot amber"></div></div>
-            <div class="signal-value teaser-blur" style="font-size:15px">Present</div>
-            <div class="signal-delta up teaser-blur"><i class="ti ti-arrow-up"></i>New this month</div>
+            <div class="signal-card-header"><div class="signal-name">Google AI Visibility</div><div class="rag-dot gray"></div></div>
+            <div class="signal-value teaser-blur" style="font-size:15px">●●●</div>
+            <div class="teaser-note">Tracked on Agency</div>
             <div class="teaser-cta">Unlock AI Visibility →</div>
           </div>
           <div class="signal-card teaser-card" onclick="window.__navigate('upgrade','Social Signals')">
-            <div class="signal-card-header"><div class="signal-name">Instagram Engagement</div><div class="rag-dot amber"></div></div>
-            <div class="signal-value teaser-blur">3.2%</div>
-            <div class="signal-delta up teaser-blur"><i class="ti ti-arrow-up"></i>0.2% from last</div>
+            <div class="signal-card-header"><div class="signal-name">Instagram Engagement</div><div class="rag-dot gray"></div></div>
+            <div class="signal-value teaser-blur">●●●</div>
+            <div class="teaser-note">Tracked on Agency</div>
             <div class="teaser-cta">Unlock Social →</div>
           </div>
         </div>
@@ -974,7 +977,7 @@
           </div>
           ${d !== null
             ? `<div class="signal-delta ${dc}"><i class="ti ${dc === 'up' ? 'ti-arrow-up' : dc === 'down' ? 'ti-arrow-down' : 'ti-minus'}"></i>${Math.abs(d)}${suffix} from last</div>`
-            : `<div class="signal-prev">First report</div>`}
+            : `<div class="signal-prev">${v !== null && v !== undefined ? 'First report' : 'Not measured yet'}</div>`}
           ${prevSnap && prevSnap[f.field] !== null && prevSnap[f.field] !== undefined
             ? `<div class="signal-prev">Was: ${prevSnap[f.field]}${suffix}</div>` : ''}
           ${range ? `<div class="signal-range"><span><span class="range-label">Best</span>${range[f.lowerBetter ? 'min' : 'max']}${suffix}</span><span><span class="range-label">Avg</span>${range.avg}${suffix}</span><span><span class="range-label">Worst</span>${range[f.lowerBetter ? 'max' : 'min']}${suffix}</span></div>` : ''}
@@ -1801,10 +1804,33 @@
 
   // ── S-12/13/14: STUBS (upgrade-gated screens) ────────────────────────
   function renderAI() {
-    renderUpgradePrompt('screen-ai', 'AI Visibility', 'See how your business appears when people ask ChatGPT, Gemini, or Perplexity about your category. Available on Pro and Agency.');
+    const planAI = state.data.masterRecord.plan;
+    if (planAI !== 'agency') {
+      renderUpgradePrompt('screen-ai', 'AI Visibility', 'See how your business appears when people ask ChatGPT, Gemini, or Perplexity about your category. Available on Agency.');
+      return;
+    }
+    const currAI = latest();
+    const gv = currAI ? currAI.ai_visibility_google : null;
+    const cv = currAI ? currAI.ai_visibility_chatgpt : null;
+    const hasAI = (gv === 'Present' || gv === 'Absent' || cv === 'Present' || cv === 'Absent');
+    const htmlAI = hasAI ? '<div class="signal-grid"><div class="signal-card"><div class="signal-card-header"><div class="signal-name">Google AI Visibility</div><div class="rag-dot ' + (gv === 'Present' ? 'green' : gv === 'Absent' ? 'red' : 'gray') + '"></div></div><div class="signal-value" style="font-size:16px">' + (gv || '-') + '</div></div><div class="signal-card"><div class="signal-card-header"><div class="signal-name">ChatGPT Visibility</div><div class="rag-dot ' + (cv === 'Present' ? 'green' : cv === 'Absent' ? 'red' : 'gray') + '"></div></div><div class="signal-value" style="font-size:16px">' + (cv || '-') + '</div></div></div>' : '<div class="empty-state"><i class="ti ti-brain"></i><p>AI visibility measurement is being set up for your account. It arrives with an upcoming monthly report - no action needed on your side.</p></div>';
+    var elAI = document.getElementById('ai-content');
+    if (elAI) { elAI.innerHTML = htmlAI; } else { var scAI = document.getElementById('screen-ai'); if (scAI) { var oldAI = scAI.querySelector('.honest-inject'); if (oldAI) oldAI.remove(); scAI.insertAdjacentHTML('beforeend', '<div class="honest-inject">' + htmlAI + '</div>'); } }
   }
   function renderSocial() {
-    renderUpgradePrompt('screen-social', 'Social Signals', 'Track your Instagram and LinkedIn engagement month over month. Available on Agency.');
+    const planSO = state.data.masterRecord.plan;
+    if (planSO !== 'agency') {
+      renderUpgradePrompt('screen-social', 'Social Signals', 'Track your Instagram and LinkedIn engagement month over month. Available on Agency.');
+      return;
+    }
+    const currSO = latest();
+    const ig = currSO ? currSO.instagram_engagement_rate : null;
+    const fb = currSO ? currSO.facebook_page_score : null;
+    const sb = currSO ? currSO.instagram_shadowban_status : null;
+    const hasSO = (ig !== null && ig !== undefined && ig !== '') || (fb !== null && fb !== undefined && fb !== '');
+    const htmlSO = hasSO ? '<div class="signal-grid"><div class="signal-card"><div class="signal-card-header"><div class="signal-name">Instagram Engagement</div><div class="rag-dot ' + ((ig !== null && ig !== undefined && ig !== '') ? ragStatus('instagram_engagement_rate', ig) : 'gray') + '"></div></div><div class="signal-value">' + ((ig !== null && ig !== undefined && ig !== '') ? ig + '%' : '-') + '</div></div><div class="signal-card"><div class="signal-card-header"><div class="signal-name">Facebook Page Score</div><div class="rag-dot ' + ((fb !== null && fb !== undefined && fb !== '') ? ragStatus('facebook_page_score', fb) : 'gray') + '"></div></div><div class="signal-value">' + ((fb !== null && fb !== undefined && fb !== '') ? fb : '-') + '</div></div><div class="signal-card"><div class="signal-card-header"><div class="signal-name">Shadowban Status</div><div class="rag-dot gray"></div></div><div class="signal-value" style="font-size:16px">' + (sb || '-') + '</div></div></div>' : '<div class="empty-state"><i class="ti ti-heart"></i><p>Social signal measurement is being set up for your account. It arrives with an upcoming monthly report - no action needed on your side.</p></div>';
+    var elSO = document.getElementById('social-content');
+    if (elSO) { elSO.innerHTML = htmlSO; } else { var scSO = document.getElementById('screen-social'); if (scSO) { var oldSO = scSO.querySelector('.honest-inject'); if (oldSO) oldSO.remove(); scSO.insertAdjacentHTML('beforeend', '<div class="honest-inject">' + htmlSO + '</div>'); } }
   }
 
   // ── UPGRADE PROMPT ───────────────────────────────────────────────────
