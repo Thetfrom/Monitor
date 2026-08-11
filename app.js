@@ -1837,8 +1837,53 @@
         + '4. It is currently open<br>'
         + '</div>' + whyRows
         + '<div style="font-size:12px;color:#8a8fa6;margin-top:11px;padding-top:10px;border-top:1px solid #f4f4f8">We do not let anyone type a competitor into a box. If a business cannot pass all four checks it is left out rather than guessed at.</div>', false);
+      var seriesC = [{ name: bizC, own: true, vals: snapsC.map(myRankOf) }].concat(compsC.map(function (c) {
+        return { name: c.name || c.url, own: false, vals: snapsC.map(function (sn) { return num(sn['competitor_' + c.slot + '_maps_rank']); }) };
+      }));
+      var anyPt = 0;
+      seriesC.forEach(function (s2) { s2.vals.forEach(function (v) { if (v !== null) anyPt++; }); });
+      var trendInnerC;
+      if (snapsC.length < 2 || !anyPt) {
+        trendInnerC = '<div style="height:150px;display:flex;align-items:center;justify-content:center;background:#faf9ff;border-radius:10px;color:#8a8fa6;font-size:12.5px;text-align:center;padding:0 18px">A rank line needs at least two recorded reports. You have ' + snapsC.length + '.</div>';
+      } else {
+        var W2 = 520, H2 = 150, PADL = 26, PADB = 20;
+        var allV = [];
+        seriesC.forEach(function (s2) { s2.vals.forEach(function (v) { if (v !== null) allV.push(v); }); });
+        var maxV = Math.max.apply(null, allV.concat([5]));
+        var stepX2 = (W2 - PADL) / Math.max(1, snapsC.length - 1);
+        var yOf = function (v) { return ((v - 1) / Math.max(1, maxV - 1)) * (H2 - PADB); };
+        var cols = ['#0F0638', '#c0392b', '#3f9c1c', '#d98b0f'];
+        var paths = seriesC.map(function (s2, si) {
+          var col = s2.own ? cols[0] : cols[(si % 3) + 1];
+          var d = '', dots = '', open = false;
+          s2.vals.forEach(function (v, i) {
+            if (v === null) { open = false; return; }
+            var x = PADL + i * stepX2, y = yOf(v);
+            d += (open ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+            dots += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="3.2" fill="' + col + '"></circle>';
+            open = true;
+          });
+          return '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="' + (s2.own ? 2.6 : 1.8) + '" stroke-linejoin="round"></path>' + dots;
+        }).join('');
+        var xLabels = snapsC.map(function (sn, i) {
+          return '<text x="' + (PADL + i * stepX2).toFixed(1) + '" y="' + (H2 - 4) + '" text-anchor="middle" font-size="9" fill="#8a8fa6">#' + (num(sn.report_number) || (i + 1)) + '</text>';
+        }).join('');
+        var legend = seriesC.map(function (s2, si) {
+          var col = s2.own ? cols[0] : cols[(si % 3) + 1];
+          var shown = s2.vals.filter(function (v) { return v !== null; }).length;
+          return '<span style="display:inline-flex;align-items:center;gap:5px;margin-right:13px;font-size:11.5px;color:#3f4157"><span style="width:9px;height:3px;background:' + col + ';display:inline-block;border-radius:2px"></span>' + escC(s2.name) + (shown ? '' : ' <span style="color:#a9aabb">(no data)</span>') + '</span>';
+        }).join('');
+        var dateSet = [];
+        snapsC.forEach(function (sn) { if (sn.snapshot_date && dateSet.indexOf(sn.snapshot_date) === -1) dateSet.push(sn.snapshot_date); });
+        trendInnerC = '<svg viewBox="0 0 ' + W2 + ' ' + H2 + '" style="width:100%;height:150px;display:block">'
+          + '<text x="0" y="10" font-size="9" fill="#c9c9d6">#1</text><text x="0" y="' + (H2 - PADB) + '" font-size="9" fill="#c9c9d6">#' + maxV + '</text>'
+          + paths + xLabels + '</svg>'
+          + '<div style="margin-top:9px">' + legend + '</div>'
+          + (dateSet.length < 2 ? '<div style="font-size:12px;color:#a86b12;margin-top:9px">All ' + snapsC.length + ' reports so far carry the same date, so this shows report order rather than movement over time. It becomes a real timeline as your weekly runs land.</div>' : '<div style="font-size:12px;color:#8a8fa6;margin-top:9px">' + dateSet.length + ' report dates from ' + escC(dateSet[0]) + ' to ' + escC(dateSet[dateSet.length - 1]) + '.</div>');
+      }
+      var trendPanelC = cardC('Rank over reports', 'Your map position and each competitor\'s, one point per report. Higher on the chart is better.', trendInnerC, true);
       htmlC = '<style>.tmc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.tmc-grid>.tmc-full{grid-column:1/-1}@media(max-width:900px){.tmc-grid{grid-template-columns:1fr}}</style><div class="tmc-grid">'
-        + verdictC + h2h + sovPanel + beatsPanel + whyPanel + '</div>';
+        + verdictC + h2h + sovPanel + beatsPanel + whyPanel + trendPanelC + '</div>';
     }
     var elC = document.getElementById('competitors-content');
     if (elC) { elC.innerHTML = htmlC; } else { var scC = document.getElementById('screen-competitors'); if (scC) { var oldC = scC.querySelector('.honest-inject'); if (oldC) oldC.remove(); scC.insertAdjacentHTML('beforeend', '<div class="honest-inject">' + htmlC + '</div>'); } }
