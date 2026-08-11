@@ -1848,6 +1848,22 @@
         return '<span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;background:#f0f0f4;color:#8a8fa6">-</span>';
       };
       var dedupAI = orderAI.map(function (k) { return byMD[k]; });
+      var normSoV = function (s) { return String(s).toLowerCase().replace(/\bavenue\b/g, 'ave'); };
+      var ansListSoV = [];
+      dedupAI.forEach(function (c) { ['answer_kw1', 'answer_kw2', 'answer_kw3'].forEach(function (f) { if (c[f]) ansListSoV.push(normSoV(c[f])); }); });
+      var entsSoV = [];
+      if (mrAI.business_name) entsSoV.push({ n: mrAI.business_name, own: true });
+      [mrAI.competitor_1_name, mrAI.competitor_2_name, mrAI.competitor_3_name].forEach(function (cn) { if (cn) entsSoV.push({ n: cn, own: false }); });
+      var sovHtml = '';
+      if (ansListSoV.length && entsSoV.length) {
+        var rowsSoV = entsSoV.map(function (e) {
+          var cnt = ansListSoV.filter(function (a) { return a.indexOf(normSoV(e.n)) !== -1; }).length;
+          var pct = Math.round(cnt / ansListSoV.length * 100);
+          return '<div style="margin:8px 0"><div style="display:flex;justify-content:space-between;font-size:13px;color:#0F0638"><span style="font-weight:' + (e.own ? '700' : '400') + '">' + escAI(e.n) + (e.own ? ' (you)' : '') + '</span><span>' + cnt + ' of ' + ansListSoV.length + ' answers - ' + pct + '%</span></div><div style="background:#f0f0f4;border-radius:6px;height:10px;margin-top:4px"><div style="width:' + pct + '%;height:10px;border-radius:6px;background:' + (e.own ? '#0F0638' : '#8a8fa6') + '"></div></div></div>';
+        }).join('');
+        var hintSoV = entsSoV.length < 2 ? '<div style="font-size:12px;color:#8a8fa6;margin-top:6px">Add competitor names in your profile to compare share of voice.</div>' : '';
+        sovHtml = '<div style="margin-top:14px;background:#fff;border-radius:12px;padding:14px 16px"><div style="font-weight:700;color:#0F0638;margin-bottom:2px">Share of voice - who the AIs name</div><div style="font-size:12px;color:#8a8fa6;margin-bottom:8px">Counted across the stored AI answers in the table below. An answer counts once per business named in it.</div>' + rowsSoV + hintSoV + '</div>';
+      }
       var rowsAI = dedupAI.slice(-40).reverse().map(function (c) {
         var ansParts = [];
         [['answer_kw1', 0], ['answer_kw2', 1], ['answer_kw3', 2]].forEach(function (pr) {
@@ -1859,7 +1875,7 @@
         return '<tr' + toggleAttr + '><td style="padding:8px 10px;border-bottom:1px solid #eee">' + escAI(c.check_date) + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;font-weight:600">' + escAI(c.model) + (ansParts.length ? ' <span style="color:#8a8fa6;font-size:10px">&#9656; answers</span>' : '') + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center">' + chipAI(c.kw1_mentioned) + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center">' + chipAI(c.kw2_mentioned) + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center">' + chipAI(c.kw3_mentioned) + '</td><td style="padding:8px 10px;border-bottom:1px solid #eee;font-weight:700">' + c.score + '</td></tr>' + ansRow;
       }).join('');
       var kwHead = function (kn) { if (!kn) return '-'; var s = kn.length > 18 ? escAI(kn.slice(0, 17)) + '&#8230;' : escAI(kn); return '<span title="' + escAI(kn) + '">' + s + '</span>'; };
-      htmlAI = '<div class="signal-grid">' + cards + '</div>' + changesHtml +
+      htmlAI = '<div class="signal-grid">' + cards + '</div>' + changesHtml + sovHtml +
         '<div style="margin-top:18px;background:#fff;border-radius:12px;padding:16px;overflow-x:auto"><div style="font-weight:700;color:#0F0638;margin-bottom:4px">Daily checks - one row per AI model per day</div><div style="font-size:12px;color:#8a8fa6;margin-bottom:8px">Each day we ask every AI model about your tracked keywords. yes = your business appeared in that answer. Click a row to read the actual answers.</div>' +
         '<table style="width:100%;border-collapse:collapse;font-size:13px;color:#0F0638"><thead><tr><th style="text-align:left;padding:8px 10px;color:#8a8fa6;font-size:11px">DATE</th><th style="text-align:left;padding:8px 10px;color:#8a8fa6;font-size:11px">MODEL</th><th style="padding:8px 10px;color:#8a8fa6;font-size:11px">' + kwHead(kwNames[0]) + '</th><th style="padding:8px 10px;color:#8a8fa6;font-size:11px">' + kwHead(kwNames[1]) + '</th><th style="padding:8px 10px;color:#8a8fa6;font-size:11px">' + kwHead(kwNames[2]) + '</th><th style="text-align:left;padding:8px 10px;color:#8a8fa6;font-size:11px">SCORE</th></tr></thead><tbody>' + rowsAI + '</tbody></table>' +
         '<div style="font-size:12px;color:#8a8fa6;margin-top:10px">More AI models are being added - a model without a verified data source is not shown rather than guessed.</div></div>';
