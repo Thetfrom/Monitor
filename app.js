@@ -1829,14 +1829,14 @@
           + (c.url ? '<div style="font-size:12px;color:#8a8fa6;margin-top:2px">' + escC(c.url.replace(/^https?:\/\//, '')) + '</div>' : '<div style="font-size:12px;color:#a86b12;margin-top:2px">No website recorded, so no map rank can be matched for this slot</div>')
           + '</div>';
       }).join('');
-      var whyPanel = cardC('Why these ' + compsC.length, 'A business is only tracked here if it passes all four checks against real data.',
+      var whyPanel = cardC('Why these ' + compsC.length, 'A business is only tracked here if it passes all three checks against real data.',
         '<div style="font-size:12.5px;color:#3f4157;line-height:1.7">'
         + '1. It shares at least one business category with you<br>'
         + '2. It appeared in the same local results as you for at least one of your keywords<br>'
         + '3. It trades in your city<br>'
-        + '4. It is currently open<br>'
+        + '<span style="color:#6b6b6b;font-size:12px">Opening hours are not part of this check.</span>'
         + '</div>' + whyRows
-        + '<div style="font-size:12px;color:#8a8fa6;margin-top:11px;padding-top:10px;border-top:1px solid #f4f4f8">We do not let anyone type a competitor into a box. If a business cannot pass all four checks it is left out rather than guessed at.</div>', false);
+        + '<div style="font-size:12px;color:#8a8fa6;margin-top:11px;padding-top:10px;border-top:1px solid #f4f4f8">We do not let anyone type a competitor into a box. If a business cannot pass all three checks it is left out rather than guessed at.</div>', false);
       var seriesC = [{ name: bizC, own: true, vals: snapsC.map(myRankOf) }].concat(compsC.map(function (c) {
         return { name: c.name || c.url, own: false, vals: snapsC.map(function (sn) { return num(sn['competitor_' + c.slot + '_maps_rank']); }) };
       }));
