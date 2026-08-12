@@ -1768,7 +1768,7 @@
           + '<td style="padding:10px 8px;border-bottom:1px solid #f4f4f8;font-size:12.5px">' + mv + '</td></tr>';
       }).join('');
       var missingRank = compsC.filter(function (c) { return c.rank === null; }).length;
-      var h2h = cardC('Head to head on "' + escC(cmpKw) + '"', 'Google local map position for one keyword, from your latest monthly report. Lower is better.',
+      var h2h = cardC('Head to head on "' + escC(cmpKw) + '"', 'Google local map position for one keyword, measured ' + (latestC && latestC.snapshot_date ? latestC.snapshot_date : 'on your latest report') + '. Lower is better.' + (function () { var orank = num(latestC ? (kw2C ? latestC.organic_rank_kw2 : latestC.organic_rank_kw1) : null); return orank ? ' On the same search you sit at #' + orank + ' in the regular web results, which is a separate list from the map pack.' : ''; })(),
         '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;color:#0F0638"><thead><tr>'
         + '<th style="text-align:left;padding:6px 8px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">#</th>'
         + '<th style="text-align:left;padding:6px 8px;font-size:10.5px;letter-spacing:.06em;color:#8a8fa6">BUSINESS</th>'
