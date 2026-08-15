@@ -1957,7 +1957,35 @@
           + spark(r, false)
           + '<div style="font-size:10.5px;color:' + mv[1] + ';min-width:60px;text-align:right">' + mv[0] + '</div></div>';
       }).join('');
-      var ladderCard = cardC('Local pack standings', 'Positions from your latest report' + (dts[L - 1] ? ', ' + dts[L - 1] : '') + '. Movement compares against the report before.', ladder);
+      var insL = (function () {
+        var own = null; var ups = 0, downs = 0, news = 0;
+        rows.forEach(function (r) {
+          if (r.own) { own = r; return; }
+          if (r.last === null) return;
+          if (r.prev === null) { news++; return; }
+          if (r.last < r.prev) ups++; else if (r.last > r.prev) downs++;
+        });
+        var bits = [];
+        if (own && own.last !== null) {
+          if (own.prev === null) bits.push('You enter the board at #' + own.last + '.');
+          else if (own.last < own.prev) bits.push('You climbed ' + (own.prev - own.last) + ' to #' + own.last + '.');
+          else if (own.last > own.prev) bits.push('You slipped ' + (own.last - own.prev) + ' to #' + own.last + '.');
+          else bits.push('You held #' + own.last + '.');
+        } else if (own) {
+          bits.push('You are not in the top local results this report.');
+        }
+        if (ups || downs || news) {
+          var m = [];
+          if (ups) m.push(ups + ' climbed');
+          if (downs) m.push(downs + ' fell');
+          if (news) m.push(news + ' entered');
+          bits.push('Around you: ' + m.join(', ') + '.');
+        } else if (L > 1) {
+          bits.push('No competitor moved since the last report.');
+        }
+        return bits.length ? '<div style="border-left:3px solid #E8400A;padding:8px 12px;background:#FFF3ED;margin-top:12px"><div style="font-size:12.5px;color:#0F0638;line-height:1.55">' + bits.join(' ') + '</div></div>' : '';
+      })();
+      var ladderCard = cardC('Local pack standings', 'Positions from your latest report' + (dts[L - 1] ? ', ' + dts[L - 1] : '') + '. Movement compares against the report before.', ladder + insL);
       var raceInner;
       var anyPts = 0;
       rows.forEach(function (r) { r.vals.forEach(function (v) { if (v !== null) anyPts++; }); });
@@ -1996,8 +2024,28 @@
           + '<text x="' + xs(L - 1) + '" y="' + (H3 - 2) + '" font-size="9.5" fill="#b9bccb" text-anchor="middle">' + escC(dts[L - 1] || '') + '</text>'
           + '</svg>';
       }
-      var raceCard = cardC('The race for the map pack', 'Position per report on your comparison keyword. The top line leads. Lower numbers are better.', raceInner);
-      return '<div class="tmc-grid">' + ladderCard + raceCard + '</div>';
+      var insR = '';
+      if (L >= 2) {
+        var movers = [];
+        rows.forEach(function (r) {
+          var first = null, lastv = null;
+          r.vals.forEach(function (v) { if (v !== null) { if (first === null) first = v; lastv = v; } });
+          if (first === null || lastv === null) return;
+          movers.push({ name: r.name, own: r.own, d: first - lastv });
+        });
+        var best = null, worst = null;
+        movers.forEach(function (m) {
+          if (!best || m.d > best.d) best = m;
+          if (!worst || m.d < worst.d) worst = m;
+        });
+        var rl = [];
+        if (best && best.d > 0) rl.push((best.own ? 'You are' : escC(best.name) + ' is') + ' the fastest climber on the board, up ' + best.d + ' spot' + (best.d === 1 ? '' : 's') + ' across your reports.');
+        if (worst && worst.d < 0) rl.push((worst.own ? 'You have' : escC(worst.name) + ' has') + ' dropped ' + (-worst.d) + ' spot' + (worst.d === -1 ? '' : 's') + ' across the same stretch.');
+        if (!rl.length && movers.length) rl.push('Every line is flat so far. Nobody has gained or lost ground across your reports.');
+        if (rl.length) insR = '<div style="border-left:3px solid #E8400A;padding:8px 12px;background:#FFF3ED;margin-top:12px">' + rl.map(function (x) { return '<div style="font-size:12.5px;color:#0F0638;line-height:1.55">' + x + '</div>'; }).join('') + '</div>';
+      }
+      var raceCard = cardC('The race for the map pack', 'Position per report on your comparison keyword. The top line leads. Lower numbers are better.', raceInner + insR);
+      return '<div class="tmc-grid tmc-full">' + ladderCard + raceCard + '</div>';
     })();
     var gapC = (function () {
       var L2 = snapsC.length;
