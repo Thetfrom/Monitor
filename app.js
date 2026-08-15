@@ -1999,6 +1999,87 @@
       var raceCard = cardC('The race for the map pack', 'Position per report on your comparison keyword. The top line leads. Lower numbers are better.', raceInner);
       return '<div class="tmc-grid">' + ladderCard + raceCard + '</div>';
     })();
+    var gapC = (function () {
+      var L2 = snapsC.length;
+      var ownRow = null, compRows = [];
+      seriesC.forEach(function (s) {
+        var last = L2 ? s.vals[L2 - 1] : null;
+        var prev = L2 > 1 ? s.vals[L2 - 2] : null;
+        var r = { name: s.name, own: s.own, last: last, prev: prev };
+        if (s.own) ownRow = r; else compRows.push(r);
+      });
+      var inner = '';
+      if (!ownRow || ownRow.last === null) {
+        inner = '<div style="font-size:12.5px;color:#8a8fa6;padding:8px 0">You are not in the top local results in this report, so gaps cannot be measured from your position. The standings above show where your competitors sit.</div>';
+      } else {
+        var oL = ownRow.last, oP = ownRow.prev;
+        var behind = [], ahead = [], unranked = [];
+        compRows.forEach(function (r) {
+          if (r.last === null) { unranked.push(r); return; }
+          if (r.last > oL) behind.push(r); else if (r.last < oL) ahead.push(r); else behind.push(r);
+        });
+        behind.sort(function (a, b) { return a.last - b.last; });
+        ahead.sort(function (a, b) { return b.last - a.last; });
+        var maxGap = 10;
+        behind.forEach(function (r) { maxGap = Math.max(maxGap, r.last - oL); });
+        ahead.forEach(function (r) { maxGap = Math.max(maxGap, oL - r.last); });
+        var barRow = function (r) {
+          var g = r.last - oL;
+          var isAhead = g < 0; var ag = Math.abs(g);
+          var w = Math.max(6, Math.min(100, Math.round(ag / maxGap * 100)));
+          var bg = isAhead ? '#F09595' : (ag <= 5 ? '#F0997B' : '#5DCAA5');
+          var tc = isAhead ? '#501313' : (ag <= 5 ? '#4A1B0C' : '#04342C');
+          var lbl = isAhead ? ag + ' ahead of you' : (g === 0 ? 'tied with you' : ag + ' behind');
+          var ghost = '';
+          if (r.prev !== null && oP !== null) {
+            var gPrev = r.prev - oP;
+            if (gPrev !== g) ghost = '<span style="font-size:10px;color:#b9bccb;margin-left:8px">was ' + Math.abs(gPrev) + (gPrev < 0 ? ' ahead' : ' behind') + '</span>';
+          }
+          return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+            + '<div style="min-width:130px;font-size:12.5px;color:#0F0638;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escC(r.name) + '</div>'
+            + '<div style="flex:1;background:#f7f7fb;border-radius:4px;height:18px"><div style="width:' + w + '%;height:18px;border-radius:4px;background:' + bg + ';display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:10px;color:' + tc + ';font-weight:700;min-width:56px;box-sizing:border-box">' + lbl + '</div></div>'
+            + ghost + '</div>';
+        };
+        var bars = ahead.map(barRow).join('') + behind.map(barRow).join('');
+        unranked.forEach(function (r) {
+          bars += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+            + '<div style="min-width:130px;font-size:12.5px;color:#0F0638;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escC(r.name) + '</div>'
+            + '<div style="flex:1;font-size:11px;color:#8a8fa6">not in the top local results this report</div></div>';
+        });
+        var lines = [];
+        if (ahead.length) {
+          var tgt = ahead[ahead.length - 1];
+          lines.push(escC(tgt.name) + ' sits ' + (oL - tgt.last) + ' spot' + ((oL - tgt.last) === 1 ? '' : 's') + ' ahead of you. That is the one to chase.');
+        }
+        var chasers = behind.filter(function (r) { return r.last > oL; });
+        if (chasers.length) {
+          var cl = chasers[0]; var cg = cl.last - oL;
+          var quip = cg <= 3 ? ' Close enough to worry about.' : (cg >= 15 ? ' Not exactly breathing down your neck.' : '');
+          lines.push('Your closest chaser is ' + escC(cl.name) + ', ' + cg + ' spot' + (cg === 1 ? '' : 's') + ' back.' + quip);
+        }
+        if (oP !== null) {
+          var gainers = [], faders = [];
+          compRows.forEach(function (r) {
+            if (r.last === null || r.prev === null) return;
+            var gNow = r.last - oL, gPrev = r.prev - oP;
+            if (gNow < gPrev) gainers.push({ n: r.name, d: gPrev - gNow });
+            if (gNow > gPrev) faders.push({ n: r.name, d: gNow - gPrev });
+          });
+          if (gainers.length) {
+            gainers.sort(function (a, b) { return b.d - a.d; });
+            lines.push(escC(gainers[0].n) + ' closed ' + gainers[0].d + ' spot' + (gainers[0].d === 1 ? '' : 's') + ' on you since the last report. Worth watching.');
+          } else if (faders.length) {
+            faders.sort(function (a, b) { return b.d - a.d; });
+            lines.push('Nobody gained on you since the last report. ' + escC(faders[0].n) + ' actually slipped ' + faders[0].d + ' further back.');
+          } else if (chasers.length) {
+            lines.push('Nobody moved since the last report. A quiet week' + (oL === 1 ? ' at the top.' : '.'));
+          }
+        }
+        var insight = lines.length ? '<div style="border-left:3px solid #E8400A;padding:8px 12px;background:#FFF3ED;border-radius:0;margin-top:10px">' + lines.map(function (ln) { return '<div style="font-size:12.5px;color:#0F0638;line-height:1.55">' + ln + '</div>'; }).join('') + '</div>' : '';
+        inner = '<div style="border-left:3px solid #0F0638;padding-left:14px;margin-bottom:4px"><div style="font-size:11px;font-weight:700;color:#0F0638;margin-bottom:10px">YOU - #' + oL + '</div>' + bars + '</div>' + insight;
+      }
+      return cardC('The gap behind you', 'You are the zero line. Bars show how many map positions each competitor sits from you on your comparison keyword, latest report. Grey notes show where they were the report before.', inner, true);
+    })();
     var trendPanelC = cardC('Rank over reports', 'Your map position and each competitor\'s, one point per report. Higher on the chart is better.', trendInnerC, true);
       var mxKeys = ['competitor_1_maps_rank_kw1','competitor_1_maps_rank_kw2','competitor_1_maps_rank_kw3','competitor_2_maps_rank_kw1','competitor_2_maps_rank_kw2','competitor_2_maps_rank_kw3','competitor_3_maps_rank_kw1','competitor_3_maps_rank_kw2','competitor_3_maps_rank_kw3'];
       var matrixC = '';
@@ -2025,7 +2106,7 @@
         matrixC = cardC('Rank matrix - every keyword', 'Google local map position for each tracked keyword you monitor, from your latest report' + (latestC.snapshot_date ? ', measured ' + latestC.snapshot_date : '') + '. Lower is better. A dash means that business was not in the top local results for that search.', '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13.5px;color:#0F0638">' + mxHead + mxRows + '</table></div>', true);
       }
       htmlC = '<style>.tmc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.tmc-grid>.tmc-full{grid-column:1/-1}@media(max-width:900px){.tmc-grid{grid-template-columns:1fr}}</style><div class="tmc-grid">'
-        + verdictC + h2h + sovPanel + beatsPanel + whyPanel + duoC + matrixC + '</div>';
+        + verdictC + h2h + sovPanel + beatsPanel + whyPanel + duoC + gapC + matrixC + '</div>';
     }
     var elC = document.getElementById('competitors-content');
     if (elC) { elC.innerHTML = htmlC; } else { var scC = document.getElementById('screen-competitors'); if (scC) { var oldC = scC.querySelector('.honest-inject'); if (oldC) oldC.remove(); scC.insertAdjacentHTML('beforeend', '<div class="honest-inject">' + htmlC + '</div>'); } }
