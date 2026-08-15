@@ -2000,6 +2000,7 @@
         var ys = function (v) { return (P3 + 10 + (v - 1) / Math.max(1, rMax - 1) * (H3 - P3 * 2 - 30)).toFixed(1); };
         var pal = ['#1D9E75', '#D85A30', '#D4537E'];
         var ci = 0;
+        var labs = [];
         var linesH = rows.map(function (r) {
           var col = r.own ? '#0F0638' : pal[ci++ % 3];
           var d3 = '', o3 = false, lx = null, ly = null;
@@ -2009,11 +2010,26 @@
             d3 += (o3 ? ' L' : ' M') + X + ',' + Y; o3 = true; lx = X; ly = Y;
           });
           if (!d3) return '';
-          var lastV = r.last === null ? '' : ' #' + r.last;
+          var nm = r.own ? 'You' : r.name;
+          if (nm.length > 16) nm = nm.slice(0, 15) + '\u2026';
+          labs.push({ x: parseFloat(lx) + 8, y: parseFloat(ly) + 4, dotY: parseFloat(ly), txt: escC(nm) + (r.last === null ? '' : ' #' + r.last), col: col, own: r.own });
           return '<path d="' + d3.replace(/^ /, '') + '" fill="none" stroke="' + col + '" stroke-width="' + (r.own ? 3 : 2) + '"></path>'
-            + '<circle cx="' + lx + '" cy="' + ly + '" r="' + (r.own ? 4.5 : 3.5) + '" fill="' + col + '"></circle>'
-            + '<text x="' + (parseFloat(lx) + 8) + '" y="' + (parseFloat(ly) + 4) + '" font-size="10.5" font-weight="' + (r.own ? '700' : '400') + '" fill="' + col + '">' + escC((r.own ? 'You' : r.name)) + lastV + '</text>';
+            + '<circle cx="' + lx + '" cy="' + ly + '" r="' + (r.own ? 4.5 : 3.5) + '" fill="' + col + '"></circle>';
         }).join('');
+        labs.sort(function (a, b) { return a.y - b.y; });
+        for (var li = 1; li < labs.length; li++) {
+          if (labs[li].y - labs[li - 1].y < 13) labs[li].y = labs[li - 1].y + 13;
+        }
+        for (var lj = labs.length - 1; lj >= 0; lj--) {
+          var maxLY = H3 - 18 - (labs.length - 1 - lj) * 13;
+          if (labs[lj].y > maxLY) labs[lj].y = maxLY;
+        }
+        labs.forEach(function (lb) {
+          if (Math.abs(lb.y - 4 - lb.dotY) > 6) {
+            linesH += '<line x1="' + (lb.x - 4) + '" y1="' + lb.dotY + '" x2="' + (lb.x + 1) + '" y2="' + (lb.y - 4) + '" stroke="' + lb.col + '" stroke-width="0.7" opacity="0.5"></line>';
+          }
+          linesH += '<text x="' + lb.x + '" y="' + lb.y + '" font-size="10.5" font-weight="' + (lb.own ? '700' : '400') + '" fill="' + lb.col + '">' + lb.txt + '</text>';
+        });
         raceInner = '<svg viewBox="0 0 ' + W3 + ' ' + H3 + '" style="width:100%">'
           + '<line x1="' + P3 + '" y1="' + ys(1) + '" x2="' + (W3 - P3) + '" y2="' + ys(1) + '" stroke="#f0f0f6"></line>'
           + '<line x1="' + P3 + '" y1="' + ys(rMax) + '" x2="' + (W3 - P3) + '" y2="' + ys(rMax) + '" stroke="#f0f0f6"></line>'
