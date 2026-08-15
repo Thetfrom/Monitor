@@ -1882,8 +1882,32 @@
           + (dateSet.length < 2 ? '<div style="font-size:12px;color:#a86b12;margin-top:9px">All ' + snapsC.length + ' reports so far carry the same date, so this shows report order rather than movement over time. It becomes a real timeline as your weekly runs land.</div>' : '<div style="font-size:12px;color:#8a8fa6;margin-top:9px">' + dateSet.length + ' report dates from ' + escC(dateSet[0]) + ' to ' + escC(dateSet[dateSet.length - 1]) + '.</div>');
       }
       var trendPanelC = cardC('Rank over reports', 'Your map position and each competitor\'s, one point per report. Higher on the chart is better.', trendInnerC, true);
+      var mxKeys = ['competitor_1_maps_rank_kw1','competitor_1_maps_rank_kw2','competitor_1_maps_rank_kw3','competitor_2_maps_rank_kw1','competitor_2_maps_rank_kw2','competitor_2_maps_rank_kw3','competitor_3_maps_rank_kw1','competitor_3_maps_rank_kw2','competitor_3_maps_rank_kw3'];
+      var matrixC = '';
+      if (latestC && mxKeys.some(function (k) { return k in latestC; })) {
+        var mxKws = [mrC.target_keyword_1 || '', mrC.target_keyword_2 || '', mrC.target_keyword_3 || ''];
+        var mxCols = [];
+        for (var mi = 1; mi <= 3; mi++) { if (mxKws[mi - 1]) mxCols.push(mi); }
+        var mxCell = function (v) { var n2 = num(v); return n2 ? '#' + n2 : '<span style="color:#8a8fa6">-</span>'; };
+        var mxTh = 'padding:10px 8px;border-bottom:2px solid #ececf4;text-align:left;font-size:12px;color:#8a8fa6';
+        var mxTd = 'padding:10px 8px;border-bottom:1px solid #f4f4f8';
+        var mxHead = '<tr><th style="' + mxTh + '">Business</th>';
+        mxCols.forEach(function (ci) { mxHead += '<th style="' + mxTh + '">' + escC(mxKws[ci - 1]) + '</th>'; });
+        mxHead += '</tr>';
+        var mxRows = '<tr><td style="' + mxTd + ';font-weight:700">' + escC(bizC) + '</td>';
+        mxCols.forEach(function (ci) { mxRows += '<td style="' + mxTd + ';font-weight:700">' + mxCell(latestC['maps_rank_kw' + ci]) + '</td>'; });
+        mxRows += '</tr>';
+        compsC.forEach(function (c2) {
+          var nm2 = escC(c2.name || c2.url);
+          if (c2.url) { nm2 = '<a href="' + escC(c2.url) + '" target="_blank" rel="noopener" style="color:#0F0638">' + nm2 + '</a>'; }
+          mxRows += '<tr><td style="' + mxTd + '">' + nm2 + '</td>';
+          mxCols.forEach(function (ci) { mxRows += '<td style="' + mxTd + '">' + mxCell(latestC['competitor_' + c2.slot + '_maps_rank_kw' + ci]) + '</td>'; });
+          mxRows += '</tr>';
+        });
+        matrixC = cardC('Rank matrix - every keyword', 'Google local map position for each tracked keyword you monitor, from your latest report' + (latestC.snapshot_date ? ', measured ' + latestC.snapshot_date : '') + '. Lower is better. A dash means that business was not in the top local results for that search.', '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13.5px;color:#0F0638">' + mxHead + mxRows + '</table></div>', true);
+      }
       htmlC = '<style>.tmc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.tmc-grid>.tmc-full{grid-column:1/-1}@media(max-width:900px){.tmc-grid{grid-template-columns:1fr}}</style><div class="tmc-grid">'
-        + verdictC + h2h + sovPanel + beatsPanel + whyPanel + trendPanelC + '</div>';
+        + verdictC + h2h + sovPanel + beatsPanel + whyPanel + trendPanelC + matrixC + '</div>';
     }
     var elC = document.getElementById('competitors-content');
     if (elC) { elC.innerHTML = htmlC; } else { var scC = document.getElementById('screen-competitors'); if (scC) { var oldC = scC.querySelector('.honest-inject'); if (oldC) oldC.remove(); scC.insertAdjacentHTML('beforeend', '<div class="honest-inject">' + htmlC + '</div>'); } }
