@@ -2580,6 +2580,7 @@
   }
   function renderSocial() {
     var rowsS = state.data.socialSnapshots || state.data.social_snapshots || [];
+    var subIdS = (state.data.masterRecord && state.data.masterRecord.subscriber_id) || 'unknown';
     var escS = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
     var numS = function (v) { if (v === null || v === undefined || v === '') return null; var n = parseFloat(v); return isNaN(n) ? null : n; };
     var fmtS = function (n) { if (n === null) return '-'; if (n >= 1000000) return (n / 1000000).toFixed(1).replace('.0', '') + 'M'; if (n >= 1000) return (n / 1000).toFixed(1).replace('.0', '') + 'K'; return String(n); };
@@ -2590,7 +2591,11 @@
     } else {
       var byP = {};
       rowsS.forEach(function (r) { var p = r.platform || 'unknown'; (byP[p] = byP[p] || []).push(r); });
-      Object.keys(byP).forEach(function (p) { byP[p].sort(function (x, y) { return (numS(x.report_number) || 0) - (numS(y.report_number) || 0); }); });
+      Object.keys(byP).forEach(function (p) {
+        var m = {};
+        byP[p].forEach(function (r) { var rn = numS(r.report_number) || 0; m[rn] = r; });
+        byP[p] = Object.keys(m).map(function (k) { return parseFloat(k); }).sort(function (x, y) { return x - y; }).map(function (k) { return m[k]; });
+      });
       var PLATS = [
         { key: 'instagram', name: 'Instagram', icon: 'ti-brand-instagram', fl: 'followers' },
         { key: 'youtube', name: 'YouTube', icon: 'ti-brand-youtube', fl: 'subscribers' },
@@ -2599,11 +2604,19 @@
         { key: 'linkedin', name: 'LinkedIn', icon: 'ti-brand-linkedin', fl: 'followers' },
         { key: 'x', name: 'X', icon: 'ti-brand-x', fl: 'followers' }
       ];
-      var latestOf = function (p) { var arr = byP[p]; return arr ? arr[arr.length - 1] : null; };
+      var latestOf = function (p) { var arr = byP[p]; return arr && arr.length ? arr[arr.length - 1] : null; };
+      var prevOf = function (p) { var arr = byP[p]; return arr && arr.length > 1 ? arr[arr.length - 2] : null; };
+      var streakOf = function (p) {
+        var arr = byP[p]; if (!arr || !arr.length) return 0;
+        var n = 1;
+        for (var i = arr.length - 1; i > 0; i--) { if ((numS(arr[i].report_number) || 0) - (numS(arr[i - 1].report_number) || 0) === 1) n++; else break; }
+        return n;
+      };
+      var measured = PLATS.filter(function (P) { return latestOf(P.key); });
+
       var board = '';
-      PLATS.forEach(function (P) {
-        var L = latestOf(P.key);
-        if (!L) return;
+      measured.forEach(function (P) {
+        var L = latestOf(P.key), Pv = prevOf(P.key);
         var extra = '';
         if (P.key === 'youtube') {
           extra = fmtS(numS(L.video_count)) + ' videos \u00b7 ' + fmtS(numS(L.total_views)) + ' total views' + (L.subscribers_hidden === true ? ' \u00b7 subscriber count hidden by the channel' : '');
@@ -2613,13 +2626,120 @@
           if (L.external_url) bits.push('link in bio');
           extra = bits.join(' \u00b7 ');
         }
-        board += '<div style="display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid #f4f4f8"><i class="ti ' + P.icon + '" style="font-size:22px;color:#0F0638"></i><div style="flex:1;min-width:0"><a href="' + escS(L.profile_url) + '" target="_blank" rel="noopener" style="font-weight:700;color:#0F0638;font-size:13.5px;text-decoration:none">@' + escS(L.handle) + '</a>' + (extra ? '<div style="font-size:11.5px;color:#8a8fa6;margin-top:2px">' + extra + '</div>' : '') + '</div><div style="text-align:right"><div style="font-weight:700;color:#0F0638;font-size:17px">' + fmtS(numS(L.followers)) + '</div><div style="font-size:10.5px;color:#8a8fa6">' + P.fl + '</div></div></div>';
+        var chip = '';
+        if (Pv && numS(L.followers) !== null && numS(Pv.followers) !== null) {
+          var d = numS(L.followers) - numS(Pv.followers);
+          var cc = d > 0 ? '#2f7a12' : (d < 0 ? '#c0392b' : '#8a8fa6');
+          var arrow = d > 0 ? '\u25b2 +' + fmtS(d) : (d < 0 ? '\u25bc -' + fmtS(-d) : '\u25ac flat');
+          chip = '<div style="font-size:10.5px;font-weight:700;color:' + cc + ';margin-top:2px">' + arrow + ' since last report</div>';
+        }
+        board += '<div style="display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid #f4f4f8"><i class="ti ' + P.icon + '" style="font-size:22px;color:#0F0638"></i><div style="flex:1;min-width:0"><a href="' + escS(L.profile_url) + '" target="_blank" rel="noopener" style="font-weight:700;color:#0F0638;font-size:13.5px;text-decoration:none">@' + escS(L.handle) + '</a>' + (extra ? '<div style="font-size:11.5px;color:#8a8fa6;margin-top:2px">' + extra + '</div>' : '') + '</div><div style="text-align:right"><div style="font-weight:700;color:#0F0638;font-size:17px">' + fmtS(numS(L.followers)) + '</div><div style="font-size:10.5px;color:#8a8fa6">' + P.fl + '</div>' + chip + '</div></div>';
       });
-      var scoreCard = cardS('Where you live on social', 'Measured from your latest report. Platforms without a stored handle are not shown - never guessed.', board || '<div style="font-size:12.5px;color:#8a8fa6">No platform rows in this report.</div>', true);
+      var scoreCard = cardS('Where you live on social', 'Measured from your latest report. Platforms without a stored handle are not shown - never guessed.', board, true);
+
+      var LAD = [1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000];
+      var VLAD = [1000000, 5000000, 10000000, 50000000, 100000000];
+      var firstDateAt = function (arr, field, th) {
+        for (var i = 0; i < arr.length; i++) { if ((numS(arr[i][field]) || 0) >= th) return arr[i].snapshot_date || ''; }
+        return '';
+      };
+      var medRows = '';
+      measured.forEach(function (P) {
+        var arr = byP[P.key], L = latestOf(P.key);
+        var f = numS(L.followers);
+        var chips = '';
+        if (f !== null) {
+          var earned = LAD.filter(function (t) { return f >= t; });
+          earned.slice(-2).forEach(function (t) {
+            chips += '<span style="display:inline-flex;align-items:center;gap:5px;background:#FFF3ED;border:1px solid #E8400A;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;color:#0F0638;margin-right:6px"><i class="ti ti-award" style="color:#E8400A"></i>' + fmtS(t) + ' ' + P.fl + '<span style="font-weight:400;color:#8a8fa6">measured ' + escS(firstDateAt(arr, 'followers', t)) + '</span></span>';
+          });
+        }
+        if (P.key === 'youtube') {
+          var tv = numS(L.total_views);
+          if (tv !== null) {
+            VLAD.filter(function (t) { return tv >= t; }).slice(-1).forEach(function (t) {
+              chips += '<span style="display:inline-flex;align-items:center;gap:5px;background:#FFF3ED;border:1px solid #E8400A;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;color:#0F0638;margin-right:6px"><i class="ti ti-award" style="color:#E8400A"></i>' + fmtS(t) + ' views<span style="font-weight:400;color:#8a8fa6">measured ' + escS(firstDateAt(arr, 'total_views', t)) + '</span></span>';
+            });
+          }
+        }
+        var next = '';
+        if (f !== null) {
+          var nx = null;
+          for (var j = 0; j < LAD.length; j++) { if (LAD[j] > f) { nx = LAD[j]; break; } }
+          if (nx) {
+            var pct = Math.min(99, Math.floor(f / nx * 100));
+            next = '<div style="display:flex;align-items:center;gap:8px;margin-top:6px"><div style="flex:1;background:#f4f4f8;border-radius:4px;height:8px"><div style="width:' + pct + '%;height:8px;border-radius:4px;background:#E8400A"></div></div><div style="font-size:10.5px;color:#8a8fa6;white-space:nowrap">' + pct + '% of the way to ' + fmtS(nx) + '</div></div>';
+          }
+        }
+        medRows += '<div style="padding:10px 0;border-bottom:1px solid #f4f4f8"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><i class="ti ' + P.icon + '" style="color:#0F0638"></i><span style="font-size:12.5px;font-weight:700;color:#0F0638">' + P.name + '</span></div>' + (chips || '<span style="font-size:11.5px;color:#8a8fa6">First milestone at ' + fmtS(LAD[0]) + ' ' + P.fl + '.</span>') + next + '</div>';
+      });
+      var medalCard = cardS('Milestones', 'Earned the moment we measure you past a line. Dates are when Monitor first measured it, stated as such.', medRows, true);
+
+      var comps = [];
+      comps.push({ name: 'Presence', measured: true, pts: measured.length >= 2 ? 25 : 15, max: 25, note: measured.length + ' platform' + (measured.length === 1 ? '' : 's') + ' measured' });
+      var anyPrev = measured.some(function (P) { return prevOf(P.key); });
+      if (anyPrev) {
+        var pos = 0, neg = 0;
+        measured.forEach(function (P) { var L = latestOf(P.key), Pv = prevOf(P.key); if (L && Pv && numS(L.followers) !== null && numS(Pv.followers) !== null) { var d = numS(L.followers) - numS(Pv.followers); if (d > 0) pos++; if (d < 0) neg++; } });
+        comps.push({ name: 'Growth', measured: true, pts: pos > 0 ? 25 : (neg > 0 ? 5 : 15), max: 25, note: pos + ' growing, ' + neg + ' shrinking' });
+      } else {
+        comps.push({ name: 'Growth', measured: false, note: 'needs two reports' });
+      }
+      comps.push({ name: 'Posting freshness', measured: false, note: 'not yet measured - excluded, never guessed' });
+      comps.push({ name: 'Audience quality', measured: false, note: 'not yet measured - excluded, never guessed' });
+      var mComps = comps.filter(function (c) { return c.measured; });
+      var scoreInner;
+      if (mComps.length >= 2) {
+        var earnedP = 0, maxP = 0;
+        mComps.forEach(function (c) { earnedP += c.pts; maxP += c.max; });
+        var sc = Math.round(100 * earnedP / maxP);
+        var circ = 2 * Math.PI * 34;
+        var dash = (sc / 100 * circ).toFixed(1);
+        scoreInner = '<div style="display:flex;align-items:center;gap:18px"><svg viewBox="0 0 80 80" style="width:80px;height:80px;flex:none"><circle cx="40" cy="40" r="34" fill="none" stroke="#f4f4f8" stroke-width="8"></circle><circle cx="40" cy="40" r="34" fill="none" stroke="#E8400A" stroke-width="8" stroke-linecap="round" stroke-dasharray="' + dash + ' ' + circ.toFixed(1) + '" transform="rotate(-90 40 40)"></circle><text x="40" y="46" text-anchor="middle" font-size="20" font-weight="700" fill="#0F0638">' + sc + '</text></svg><div style="flex:1">';
+      } else {
+        scoreInner = '<div style="display:flex;align-items:center;gap:18px"><div style="font-size:12.5px;color:#8a8fa6;max-width:200px">Your Social Score arrives with your second report. A score needs movement, and movement needs history.</div><div style="flex:1">';
+      }
+      var compList = '';
+      comps.forEach(function (c) {
+        compList += '<div style="display:flex;justify-content:space-between;padding:3px 0"><span style="font-size:11.5px;color:#3F4157">' + c.name + '</span><span style="font-size:11.5px;color:' + (c.measured ? '#0F0638' : '#8a8fa6') + ';font-weight:' + (c.measured ? '700' : '400') + '">' + (c.measured ? c.pts + '/' + c.max + ' \u00b7 ' + c.note : c.note) + '</span></div>';
+      });
+      var stChips = '';
+      measured.forEach(function (P) {
+        var st = streakOf(P.key);
+        stChips += '<span style="display:inline-flex;align-items:center;gap:4px;background:#f4f4f8;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;color:#0F0638;margin:3px 6px 0 0"><i class="ti ti-flame" style="color:#E8400A"></i>' + P.name + ' ' + st + ' report' + (st === 1 ? '' : 's') + '</span>';
+      });
+      scoreInner += compList + '<div style="margin-top:6px">' + stChips + '</div></div></div>';
+      var scoreRingCard = cardS('Social Score', 'Scored only from what was measured. Unmeasured signals are excluded from the math, not counted as zero.', scoreInner);
+
+      var PALW = ['#E8400A', '#1D9E75', '#D4537E', '#D85A30', '#5DCAA5', '#F0997B'];
+      var tot = 0;
+      measured.forEach(function (P) { tot += numS(latestOf(P.key).followers) || 0; });
+      var balInner;
+      if (tot > 0) {
+        var circ2 = 2 * Math.PI * 30;
+        var off = 0, segs = '', legend = '';
+        measured.forEach(function (P, ix) {
+          var v = numS(latestOf(P.key).followers) || 0;
+          var frac = v / tot;
+          var col = PALW[ix % PALW.length];
+          segs += '<circle cx="40" cy="40" r="30" fill="none" stroke="' + col + '" stroke-width="12" stroke-dasharray="' + (frac * circ2).toFixed(2) + ' ' + circ2.toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '" transform="rotate(-90 40 40)"></circle>';
+          off += frac * circ2;
+          var pctT = (frac * 100) >= 99.95 ? '100' : (frac * 100 < 0.1 ? '&lt;0.1' : (frac * 100).toFixed(1).replace('.0', ''));
+          legend += '<div style="display:flex;align-items:center;gap:7px;padding:2px 0"><span style="width:9px;height:9px;border-radius:2px;background:' + col + ';display:inline-block"></span><span style="font-size:11.5px;color:#3F4157;flex:1">' + P.name + '</span><span style="font-size:11.5px;font-weight:700;color:#0F0638">' + pctT + '%</span></div>';
+        });
+        var domIx = -1, domFrac = 0;
+        measured.forEach(function (P, ix) { var fr = (numS(latestOf(P.key).followers) || 0) / tot; if (fr > domFrac) { domFrac = fr; domIx = ix; } });
+        var balNote = (measured.length > 1 && domFrac >= 0.8) ? '<div style="font-size:11.5px;color:#8a8fa6;margin-top:8px">You are a ' + measured[domIx].name + '-first business. Everything else is upside.</div>' : '';
+        balInner = '<div style="display:flex;align-items:center;gap:16px"><svg viewBox="0 0 80 80" style="width:84px;height:84px;flex:none">' + segs + '</svg><div style="flex:1">' + legend + balNote + '</div></div>';
+      } else {
+        balInner = '<div style="font-size:12.5px;color:#8a8fa6">No follower counts measured yet.</div>';
+      }
+      var balCard = cardS('Where your audience lives', 'Share of your total measured audience, latest report per platform.', balInner);
+
       var growthInner = '', anyHist = false;
-      PLATS.forEach(function (P) {
+      measured.forEach(function (P) {
         var arr = byP[P.key];
-        if (!arr || arr.length < 2) return;
+        if (arr.length < 2) return;
         var first = numS(arr[0].followers), last = numS(arr[arr.length - 1].followers);
         if (first === null || last === null) return;
         anyHist = true;
@@ -2630,6 +2750,7 @@
       });
       if (!anyHist) growthInner = '<div style="font-size:12.5px;color:#8a8fa6;padding:6px 0">Growth draws itself once you have two reports with social data. Not shown rather than guessed.</div>';
       var growthCard = cardS('Follower growth', 'First stored report against the latest one, per platform.', growthInner);
+
       var igL = latestOf('instagram');
       var aqInner;
       if (igL && (numS(igL.human_score) !== null || numS(igL.avg_engagement_rate) !== null || numS(igL.bot_score) !== null)) {
@@ -2639,10 +2760,40 @@
         aqInner = '<div style="font-size:12.5px;color:#8a8fa6;padding:6px 0">Audience quality could not be measured this month. Shown as absent, not guessed - very large accounts can take longer to analyze.</div>';
       }
       var aqCard = cardS('Audience quality - Instagram', 'How real your audience behaves. Measured, never estimated.', aqInner);
+
+      window.__soGoal = function (p) {
+        var inp = document.getElementById('so-goal-inp-' + p);
+        if (!inp) return;
+        var v = parseFloat(String(inp.value).replace(/[^0-9.]/g, ''));
+        if (!isNaN(v) && v > 0) { lsSet('social_goal_' + subIdS + '_' + p, String(Math.round(v))); renderSocial(); }
+      };
+      window.__soGoalClear = function (p) { lsSet('social_goal_' + subIdS + '_' + p, ''); renderSocial(); };
+      var goalRows = '';
+      measured.forEach(function (P) {
+        var L = latestOf(P.key), Pv = prevOf(P.key);
+        var f = numS(L.followers);
+        var g = numS(lsGet('social_goal_' + subIdS + '_' + P.key));
+        var right;
+        if (g && f !== null) {
+          var pctG = Math.min(100, Math.floor(f / g * 100));
+          var proj = '';
+          if (f >= g) proj = 'Goal reached. Set a higher one.';
+          else if (Pv && numS(Pv.followers) !== null) {
+            var rate = f - numS(Pv.followers);
+            proj = rate > 0 ? 'about ' + Math.ceil((g - f) / rate) + ' reports away at your measured pace (a projection, not a promise)' : 'no measured growth yet, so no projection';
+          } else proj = 'projection appears after two reports';
+          right = '<div style="flex:1"><div style="display:flex;justify-content:space-between;font-size:11px;color:#8a8fa6;margin-bottom:3px"><span>' + fmtS(f) + ' of ' + fmtS(g) + '</span><span>' + pctG + '%</span></div><div style="background:#f4f4f8;border-radius:4px;height:8px"><div style="width:' + pctG + '%;height:8px;border-radius:4px;background:#E8400A"></div></div><div style="font-size:10.5px;color:#8a8fa6;margin-top:3px">' + proj + '</div></div><button onclick="__soGoalClear(\'' + P.key + '\')" style="background:transparent;border:0;color:#8a8fa6;font-size:11px;cursor:pointer;text-decoration:underline;padding:0">change</button>';
+        } else {
+          right = '<input id="so-goal-inp-' + P.key + '" placeholder="Target ' + P.fl + '" style="width:130px;padding:6px 10px;border:1px solid #eceaf5;border-radius:8px;font-size:12px;color:#0F0638;background:#fff"><button onclick="__soGoal(\'' + P.key + '\')" style="padding:6px 14px;border:0;border-radius:8px;background:#E8400A;color:#fff;font-size:12px;font-weight:700;cursor:pointer">Set goal</button>';
+        }
+        goalRows += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f4f4f8"><div style="min-width:110px;display:flex;align-items:center;gap:7px"><i class="ti ' + P.icon + '" style="color:#0F0638"></i><span style="font-size:12.5px;font-weight:700;color:#0F0638">' + P.name + '</span></div>' + right + '</div>';
+      });
+      var goalCard = cardS('Your goals', 'Set a target per platform. Saved on this device. Progress is measured; the pace estimate is a projection and says so.', goalRows, true);
+
       var best = null;
-      PLATS.forEach(function (P) { var L2 = latestOf(P.key); if (L2 && numS(L2.followers) !== null && (!best || numS(L2.followers) > best.f)) best = { name: P.name, f: numS(L2.followers) }; });
+      measured.forEach(function (P) { var L2 = latestOf(P.key); if (numS(L2.followers) !== null && (!best || numS(L2.followers) > best.f)) best = { name: P.name, f: numS(L2.followers) }; });
       var insight = best ? '<div class="tms-full" style="border-left:3px solid #E8400A;padding:8px 12px;background:#FFF3ED"><div style="font-size:12.5px;color:#0F0638;line-height:1.55">' + best.name + ' is your biggest measured audience at ' + fmtS(best.f) + ' ' + (best.name === 'YouTube' ? 'subscribers' : 'followers') + '.</div></div>' : '';
-      htmlSO = '<style>.tms-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.tms-grid>.tms-full{grid-column:1/-1}@media(max-width:900px){.tms-grid{grid-template-columns:minmax(0,1fr)}}</style><div class="tms-grid">' + scoreCard + growthCard + aqCard + insight + '</div>';
+      htmlSO = '<style>.tms-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.tms-grid>.tms-full{grid-column:1/-1}@media(max-width:900px){.tms-grid{grid-template-columns:minmax(0,1fr)}}</style><div class="tms-grid">' + scoreCard + medalCard + scoreRingCard + balCard + growthCard + aqCard + goalCard + insight + '</div>';
     }
     var elSO = document.getElementById('social-content');
     if (elSO) { elSO.innerHTML = htmlSO; } else { var scSO = document.getElementById('screen-social'); if (scSO) { var oldSO = scSO.querySelector('.honest-inject'); if (oldSO) oldSO.remove(); scSO.insertAdjacentHTML('beforeend', '<div class="honest-inject">' + htmlSO + '</div>'); } }
