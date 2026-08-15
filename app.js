@@ -2148,7 +2148,93 @@
       } else {
         trendInner = '<div style="height:120px;display:flex;align-items:center;justify-content:center;background:#faf9ff;border-radius:10px;color:#8a8fa6;font-size:12.5px;text-align:center;padding:0 18px">Your trend line appears after your second check. This is check ' + trendPts.length + '. We do not draw a line through a single point.</div>';
       }
-      var panelTrend = card('Your visibility over time', 'The share of stored answers that name your business, one point per check day.', trendInner, false);
+      
+    var vizDays = (function () {
+      var m = {};
+      rowsAll.forEach(function (r) {
+        var d = r.check_date; if (!d) return;
+        if (!m[d]) m[d] = { d: d, num: 0, den: 0, pm: {} };
+        ['kw1_mentioned', 'kw2_mentioned', 'kw3_mentioned'].forEach(function (k) {
+          var v = r[k];
+          if (v === 'yes' || v === 'no') {
+            m[d].den++; if (v === 'yes') m[d].num++;
+            var mo = (r.model || '').toLowerCase();
+            if (mo) { if (!m[d].pm[mo]) m[d].pm[mo] = { num: 0, den: 0 }; m[d].pm[mo].den++; if (v === 'yes') m[d].pm[mo].num++; }
+          }
+        });
+      });
+      return Object.keys(m).sort().map(function (k) { return m[k]; });
+    })();
+    var vizModels = (function () { var s = {}; rowsAll.forEach(function (r) { var mo = (r.model || '').toLowerCase(); if (mo) s[mo] = 1; }); return Object.keys(s).sort(); })();
+    window.__vizData = { days: vizDays, models: vizModels };
+    window.__vizState = { r: '7D', m: '' };
+    window.__vizSet = function (k, v) { window.__vizState[k] = v; var el = document.getElementById('aiviz-body'); if (el) el.innerHTML = window.__vizBody(); };
+    window.__vizBody = function () {
+      var S = window.__vizState, D = window.__vizData, days = D.days, L = days.length;
+      var defs = [
+        { id: '7D', need: 2, take: 7 },
+        { id: '30D', need: 8, take: 30 },
+        { id: '90D', need: 31, take: 90 },
+        { id: 'Month', need: 30, agg: 1 },
+        { id: 'Year', need: 300, agg: 1 }
+      ];
+      var pills = defs.map(function (df) {
+        var locked = L < df.need;
+        var on = S.r === df.id;
+        if (locked) {
+          var pctFill = Math.min(100, Math.round(L / df.need * 100));
+          return '<span title="Unlocks at ' + df.need + ' days of checks - you have ' + L + '" style="display:inline-block;padding:5px 12px;border-radius:16px;background:#f4f4f8;color:#b9bccb;font-size:12px;font-weight:700;margin-right:6px;cursor:default">' + df.id + ' &#128274;<span style="display:block;height:3px;border-radius:2px;background:#e3e4ee;margin-top:3px"><span style="display:block;height:3px;border-radius:2px;width:' + pctFill + '%;background:#b9bccb"></span></span></span>';
+        }
+        return '<span onclick="window.__vizSet(&quot;r&quot;,&quot;' + df.id + '&quot;)" style="display:inline-block;padding:5px 12px;border-radius:16px;cursor:pointer;font-size:12px;font-weight:700;margin-right:6px;' + (on ? 'background:#0F0638;color:#ffffff' : 'background:#f4f4f8;color:#0F0638') + '">' + df.id + '</span>';
+      }).join('');
+      var chips = [''].concat(D.models).map(function (mo) {
+        var on = S.m === mo;
+        var lbl = mo === '' ? 'ALL' : mo.toUpperCase();
+        return '<span onclick="window.__vizSet(&quot;m&quot;,&quot;' + mo + '&quot;)" style="display:inline-block;padding:4px 10px;border-radius:14px;cursor:pointer;font-size:11px;font-weight:700;margin-right:6px;' + (on ? 'background:#E8400A;color:#ffffff' : 'background:#FFF3ED;color:#E8400A') + '">' + lbl + '</span>';
+      }).join('');
+      var df2 = null; defs.forEach(function (x) { if (x.id === S.r) df2 = x; });
+      if (!df2 || L < df2.need) { df2 = defs[0]; S.r = '7D'; }
+      var sel;
+      if (df2.agg) {
+        var mm = {};
+        days.forEach(function (dy) {
+          var key = dy.d.slice(0, 7);
+          if (!mm[key]) mm[key] = { d: key, num: 0, den: 0, pm: {} };
+          mm[key].num += dy.num; mm[key].den += dy.den;
+          Object.keys(dy.pm).forEach(function (mo) { if (!mm[key].pm[mo]) mm[key].pm[mo] = { num: 0, den: 0 }; mm[key].pm[mo].num += dy.pm[mo].num; mm[key].pm[mo].den += dy.pm[mo].den; });
+        });
+        sel = Object.keys(mm).sort().map(function (k) { return mm[k]; });
+        if (df2.id === 'Year') sel = sel.slice(-12);
+      } else {
+        sel = days.slice(-df2.take);
+      }
+      var pctOf = function (o) {
+        if (S.m) { var p = o.pm[S.m]; return (p && p.den) ? Math.round(p.num / p.den * 100) : null; }
+        return o.den ? Math.round(o.num / o.den * 100) : null;
+      };
+      var ptsV = sel.map(pctOf);
+      var W2 = 520, H2 = 120, PAD = 8;
+      var n = sel.length;
+      var sx = n > 1 ? (W2 - PAD * 2) / (n - 1) : 0;
+      var px = function (i) { return (PAD + i * sx).toFixed(1); };
+      var py = function (v) { return (H2 - PAD - (v / 100) * (H2 - PAD * 2)).toFixed(1); };
+      var path = '', dots = '', openP = false;
+      ptsV.forEach(function (v, i) {
+        if (v === null) { openP = false; return; }
+        path += (openP ? ' L' : ' M') + px(i) + ',' + py(v); openP = true;
+        dots += '<circle cx="' + px(i) + '" cy="' + py(v) + '" r="3" fill="' + (S.m ? '#E8400A' : '#0F0638') + '"></circle>';
+      });
+      var svg = '<svg viewBox="0 0 ' + W2 + ' ' + H2 + '" style="width:100%;height:130px"><path d="' + path.replace(/^ /, '') + '" fill="none" stroke="' + (S.m ? '#E8400A' : '#0F0638') + '" stroke-width="2"></path>' + dots + '</svg>';
+      var lbls = '<div style="display:flex;justify-content:space-between;font-size:11px;color:#8a8fa6"><span>' + (sel.length ? sel[0].d : '') + '</span><span>' + (sel.length ? sel[sel.length - 1].d : '') + '</span></div>';
+      var vals = ptsV.filter(function (v) { return v !== null; });
+      var line2 = '';
+      if (vals.length >= 2) line2 = '<div style="font-size:12.5px;color:#0F0638;margin-top:6px">' + (S.m ? S.m.toUpperCase() + ': ' : '') + 'from ' + vals[0] + '% to ' + vals[vals.length - 1] + '% across ' + vals.length + ' measured points in this range.</div>';
+      else if (vals.length === 1) line2 = '<div style="font-size:12.5px;color:#8a8fa6;margin-top:6px">Only one measured point in this range so far.</div>';
+      else line2 = '<div style="font-size:12.5px;color:#8a8fa6;margin-top:6px">No stored answers for this selection yet. Not shown rather than guessed.</div>';
+      return '<div style="margin-bottom:8px">' + pills + '</div><div style="margin-bottom:10px">' + chips + '</div>' + svg + lbls + line2;
+    };
+    var panelViz = card('Your visibility over time', 'The share of stored answers that name your business. Pick a range - locked ranges open as your history grows.', '<div id="aiviz-body">' + window.__vizBody() + '</div>', true);
+    var panelTrend = card('Your visibility over time', 'The share of stored answers that name your business, one point per check day.', trendInner, false);
       var gaps = [];
       todayRows.forEach(function (c) {
         [1, 2, 3].forEach(function (n) {
@@ -2211,7 +2297,7 @@
         + '<div style="font-size:12px;color:#8a8fa6;margin-top:10px">More AI models are being added - a model without a verified data source is not shown rather than guessed.</div>';
       var panelTable = card('Every check, day by day', 'One row per AI model per day. yes = your business appeared in that answer.', tableInner, true);
       htmlAI = '<style>.tmv-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.tmv-grid>.tmv-full{grid-column:1/-1}@media(max-width:900px){.tmv-grid{grid-template-columns:1fr}}</style><div class="tmv-grid">'
-        + verdict + panelLeague + panelModels + panelTrend + panelGaps + panelAnswers + panelTable + '</div>';
+        + verdict + panelLeague + panelModels + panelViz + panelGaps + panelAnswers + panelTable + '</div>';
     }
     var elAI = document.getElementById('ai-content');
     if (elAI) { elAI.innerHTML = htmlAI; } else { var scAI = document.getElementById('screen-ai'); if (scAI) { var oldAI = scAI.querySelector('.honest-inject'); if (oldAI) oldAI.remove(); scAI.insertAdjacentHTML('beforeend', '<div class="honest-inject">' + htmlAI + '</div>'); } }
