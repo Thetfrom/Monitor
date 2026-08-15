@@ -2153,7 +2153,7 @@
         });
         matrixC = cardC('Rank matrix - every keyword', 'Google local map position for each tracked keyword you monitor, from your latest report' + (latestC.snapshot_date ? ', measured ' + latestC.snapshot_date : '') + '. Lower is better. A dash means that business was not in the top local results for that search.', '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13.5px;color:#0F0638">' + mxHead + mxRows + '</table></div>', true);
       }
-      htmlC = '<style>.tmc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.tmc-grid>.tmc-full{grid-column:1/-1}@media(max-width:900px){.tmc-grid{grid-template-columns:1fr}}</style><div class="tmc-grid">'
+      htmlC = '<style>.tmc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.tmc-grid>.tmc-full{grid-column:1/-1}@media(max-width:900px){.tmc-grid{grid-template-columns:minmax(0,1fr)}}</style><div class="tmc-grid">'
         + verdictC + h2h + sovPanel + beatsPanel + whyPanel + duoC + gapC + matrixC + '</div>';
     }
     var elC = document.getElementById('competitors-content');
@@ -2556,7 +2556,7 @@
         + '</tr></thead><tbody>' + tbl + '</tbody></table></div>'
         + '<div style="font-size:12px;color:#8a8fa6;margin-top:10px">More AI models are being added - a model without a verified data source is not shown rather than guessed.</div>';
       var panelTable = card('Every check, day by day', 'One row per AI model per day. yes = your business appeared in that answer.', tableInner, true);
-      htmlAI = '<style>.tmv-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.tmv-grid>.tmv-full{grid-column:1/-1}@media(max-width:900px){.tmv-grid{grid-template-columns:1fr}}</style><div class="tmv-grid">'
+      htmlAI = '<style>.tmv-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.tmv-grid>.tmv-full{grid-column:1/-1}@media(max-width:900px){.tmv-grid{grid-template-columns:minmax(0,1fr)}}</style><div class="tmv-grid">'
         + verdict + panelLeague + panelModels + panelViz + panelGaps + panelAnswers + panelCards + '<div class="tmv-full" style="text-align:center;margin:4px 0 8px"><span id="aitable-btn" onclick="var e=document.getElementById(&quot;aitable-fold&quot;);var s=e.style.display===&quot;none&quot;;e.style.display=s?&quot;block&quot;:&quot;none&quot;;this.textContent=s?&quot;Hide the day by day detail&quot;:&quot;Show every check, day by day&quot;;" style="display:inline-block;padding:8px 18px;border-radius:20px;background:#f4f4f8;color:#0F0638;font-size:13px;font-weight:700;cursor:pointer">Show every check, day by day</span></div><div id="aitable-fold" class="tmv-full" style="display:none">' + panelTable + '</div>' + '</div>';
     }
     var elAI = document.getElementById('ai-content');
