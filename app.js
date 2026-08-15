@@ -859,6 +859,30 @@
   }
 
   function renderPriorityAction(curr, prevSnap, plan) {
+    var fpEl = document.getElementById('priority-action-section');
+    var fpActs = [];
+    if (curr) {
+      [curr.recommended_action_1, curr.recommended_action_2, curr.recommended_action_3, curr.recommended_action_4, curr.recommended_action_5].forEach(function (t) {
+        var s = (t === null || t === undefined) ? '' : String(t).trim();
+        if (s && s.toLowerCase() !== 'null') fpActs.push(s);
+      });
+    }
+    if (fpEl && fpActs.length) {
+      var fpCap = plan === 'agency' ? 5 : (plan === 'pro' ? 3 : 1);
+      var fpEscape = function (s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+      var fpItems = fpActs.slice(0, fpCap).map(function (a, i) {
+        return '<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #f4f4f8;align-items:flex-start">'
+          + '<div style="min-width:26px;height:26px;border-radius:13px;background:#E8400A;color:#ffffff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center">' + (i + 1) + '</div>'
+          + '<div style="font-size:14px;color:#0F0638;line-height:1.5">' + fpEscape(a) + '</div>'
+          + '</div>';
+      }).join('');
+      fpEl.innerHTML = '<div style="background:#ffffff;border:1px solid #ececf4;border-radius:12px;padding:20px 22px">'
+        + '<div style="font-size:11px;font-weight:700;color:#E8400A;letter-spacing:1px">YOUR MONTHLY FIX PLAN</div>'
+        + '<div style="font-size:12.5px;color:#8a8fa6;margin:4px 0 6px">Ranked by urgency, most important first, compared against your previous reports.</div>'
+        + fpItems + '</div>';
+      return;
+    }
+
     const container = document.getElementById('priority-action-section');
     let action = getPriorityAction(curr, prevSnap, plan);
     if (curr.recommended_action) action = { icon: 'ti-sparkles', title: "This month's priority action", desc: curr.recommended_action };
