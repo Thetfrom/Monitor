@@ -2234,6 +2234,43 @@
       return '<div style="margin-bottom:8px">' + pills + '</div><div style="margin-bottom:10px">' + chips + '</div>' + svg + lbls + line2;
     };
     var panelViz = card('Your visibility over time', 'The share of stored answers that name your business. Pick a range - locked ranges open as your history grows.', '<div id="aiviz-body">' + window.__vizBody() + '</div>', true);
+    var panelCards = (function () {
+      var last7 = vizDays.slice(-7);
+      var cardsH = vizModels.map(function (mo) {
+        var num = 0, den = 0;
+        last7.forEach(function (dy) { var p = dy.pm[mo]; if (p) { num += p.num; den += p.den; } });
+        var pctM = den ? Math.round(num / den * 100) : null;
+        var streak = 0;
+        for (var i = vizDays.length - 1; i >= 0; i--) {
+          var p2 = vizDays[i].pm[mo];
+          if (p2 && p2.den > 0 && p2.num === p2.den) streak++; else break;
+        }
+        var strip = last7.slice(-5).map(function (dy) {
+          var p3 = dy.pm[mo];
+          var st = 'width:14px;height:6px;border-radius:3px;display:inline-block;margin-right:3px;';
+          if (!p3 || !p3.den) return '<span style="' + st + 'border:1px dashed #b9bccb"></span>';
+          if (p3.num === p3.den) return '<span style="' + st + 'background:#639922"></span>';
+          if (p3.num > 0) return '<span style="' + st + 'background:#C0DD97"></span>';
+          return '<span style="' + st + 'background:#E24B4A"></span>';
+        }).join('');
+        return { mo: mo, pct: pctM, num: num, den: den, streak: streak, strip: strip };
+      });
+      var worst = null;
+      cardsH.forEach(function (c2) { if (c2.pct !== null && c2.pct < 100 && (worst === null || c2.pct < worst.pct)) worst = c2; });
+      var inner = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">' + cardsH.map(function (c2) {
+        var foot;
+        if (c2.den === 0) foot = '<div style="font-size:11px;color:#8a8fa6;margin-top:8px">No answers stored this week</div>';
+        else if (worst && c2.mo === worst.mo) foot = '<div style="font-size:11px;color:#A32D2D;margin-top:8px;font-weight:700">Weakest model for you right now</div>';
+        else if (c2.streak >= 2) foot = '<div style="font-size:11px;color:#3B6D11;margin-top:8px;font-weight:700">' + c2.streak + ' perfect days in a row</div>';
+        else foot = '<div style="font-size:11px;color:#8a8fa6;margin-top:8px">&nbsp;</div>';
+        return '<div style="background:#ffffff;border:1px solid #ececf4;border-radius:12px;padding:14px 16px">'
+          + '<div style="font-size:13px;font-weight:700;color:#0F0638">' + escAI(c2.mo.toUpperCase()) + '</div>'
+          + '<div style="font-size:22px;font-weight:700;color:#0F0638;margin:4px 0 2px">' + (c2.pct === null ? '<span style="color:#8a8fa6">no data</span>' : c2.pct + '%') + '</div>'
+          + '<div style="font-size:11px;color:#8a8fa6;margin-bottom:8px">' + (c2.den ? c2.num + ' of ' + c2.den + ' stored answers name you, last 7 check days' : 'nothing returned in the last 7 check days') + '</div>'
+          + '<div>' + c2.strip + '</div>' + foot + '</div>';
+      }).join('') + '</div>';
+      return card('How each AI treated you this week', 'Share of stored answers naming you over your last 7 check days. A model that returned nothing is shown as such, never counted against you.', inner, true);
+    })();
     var panelTrend = card('Your visibility over time', 'The share of stored answers that name your business, one point per check day.', trendInner, false);
       var gaps = [];
       todayRows.forEach(function (c) {
@@ -2297,7 +2334,7 @@
         + '<div style="font-size:12px;color:#8a8fa6;margin-top:10px">More AI models are being added - a model without a verified data source is not shown rather than guessed.</div>';
       var panelTable = card('Every check, day by day', 'One row per AI model per day. yes = your business appeared in that answer.', tableInner, true);
       htmlAI = '<style>.tmv-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.tmv-grid>.tmv-full{grid-column:1/-1}@media(max-width:900px){.tmv-grid{grid-template-columns:1fr}}</style><div class="tmv-grid">'
-        + verdict + panelLeague + panelModels + panelViz + panelGaps + panelAnswers + panelTable + '</div>';
+        + verdict + panelLeague + panelModels + panelViz + panelGaps + panelAnswers + panelCards + panelTable + '</div>';
     }
     var elAI = document.getElementById('ai-content');
     if (elAI) { elAI.innerHTML = htmlAI; } else { var scAI = document.getElementById('screen-ai'); if (scAI) { var oldAI = scAI.querySelector('.honest-inject'); if (oldAI) oldAI.remove(); scAI.insertAdjacentHTML('beforeend', '<div class="honest-inject">' + htmlAI + '</div>'); } }
