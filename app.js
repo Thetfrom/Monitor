@@ -1905,7 +1905,101 @@
           + '<div style="margin-top:9px">' + legend + '</div>'
           + (dateSet.length < 2 ? '<div style="font-size:12px;color:#a86b12;margin-top:9px">All ' + snapsC.length + ' reports so far carry the same date, so this shows report order rather than movement over time. It becomes a real timeline as your weekly runs land.</div>' : '<div style="font-size:12px;color:#8a8fa6;margin-top:9px">' + dateSet.length + ' report dates from ' + escC(dateSet[0]) + ' to ' + escC(dateSet[dateSet.length - 1]) + '.</div>');
       }
-      var trendPanelC = cardC('Rank over reports', 'Your map position and each competitor\'s, one point per report. Higher on the chart is better.', trendInnerC, true);
+      var duoC = (function () {
+      var L = snapsC.length;
+      var dts = snapsC.map(function (sn) { return sn.snapshot_date || ''; });
+      var rows = seriesC.map(function (s) {
+        var last = L ? s.vals[L - 1] : null;
+        var prev = L > 1 ? s.vals[L - 2] : null;
+        return { name: s.name, own: s.own, vals: s.vals, last: last, prev: prev };
+      });
+      var ranked = rows.slice().sort(function (a, b) {
+        if (a.last === null && b.last === null) return 0;
+        if (a.last === null) return 1;
+        if (b.last === null) return -1;
+        return a.last - b.last;
+      });
+      var spark = function (r, light) {
+        var nn = r.vals.filter(function (v) { return v !== null; });
+        if (!nn.length) return '';
+        var lo = Math.min.apply(null, nn), hi = Math.max.apply(null, nn);
+        var n = r.vals.length, w = 60, h = 16, p = 3;
+        var sx2 = n > 1 ? (w - p * 2) / (n - 1) : 0;
+        var y2 = function (v) { return hi === lo ? h / 2 : (p + (v - lo) / (hi - lo) * (h - p * 2)); };
+        var d2 = '', o2 = false, lastPt = '';
+        r.vals.forEach(function (v, ix) {
+          if (v === null) { o2 = false; return; }
+          var X = (p + ix * sx2).toFixed(1), Y = y2(v).toFixed(1);
+          d2 += (o2 ? ' L' : ' M') + X + ',' + Y; o2 = true; lastPt = '<circle cx="' + X + '" cy="' + Y + '" r="2.5" fill="' + (light ? '#ffffff' : '#888780') + '"></circle>';
+        });
+        return '<svg viewBox="0 0 60 16" style="width:60px;height:16px;flex:none"><path d="' + d2.replace(/^ /, '') + '" fill="none" stroke="' + (light ? '#ffffff' : '#888780') + '" stroke-width="1.5"></path>' + lastPt + '</svg>';
+      };
+      var move = function (r) {
+        if (r.last === null) return ['not in top results', '#8a8fa6'];
+        if (r.prev === null) return [L > 1 ? 'newly ranked' : 'first report', '#8a8fa6'];
+        if (r.last < r.prev) return ['up ' + (r.prev - r.last), '#3B6D11'];
+        if (r.last > r.prev) return ['down ' + (r.last - r.prev), '#A32D2D'];
+        return [r.own ? 'held #' + r.last : 'no change', r.own ? '#CECBF6' : '#8a8fa6'];
+      };
+      var ladder = ranked.map(function (r) {
+        var mv = move(r);
+        var rankTxt = r.last === null ? '-' : '#' + r.last;
+        if (r.own) {
+          return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#0F0638;border-radius:10px;margin-bottom:6px">'
+            + '<div style="font-size:15px;font-weight:700;color:#ffffff;min-width:32px">' + rankTxt + '</div>'
+            + '<div style="flex:1;font-size:12.5px;font-weight:700;color:#ffffff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escC(r.name) + ' <span style="background:#E8400A;color:#ffffff;font-size:10px;padding:2px 7px;border-radius:10px">you</span></div>'
+            + spark(r, true)
+            + '<div style="font-size:10.5px;color:' + mv[1] + ';min-width:60px;text-align:right">' + mv[0] + '</div></div>';
+        }
+        return '<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid #f4f4f8">'
+          + '<div style="font-size:13px;font-weight:700;color:#8a8fa6;min-width:32px">' + rankTxt + '</div>'
+          + '<div style="flex:1;font-size:12.5px;color:#0F0638;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escC(r.name) + '</div>'
+          + spark(r, false)
+          + '<div style="font-size:10.5px;color:' + mv[1] + ';min-width:60px;text-align:right">' + mv[0] + '</div></div>';
+      }).join('');
+      var ladderCard = cardC('Local pack standings', 'Positions from your latest report' + (dts[L - 1] ? ', ' + dts[L - 1] : '') + '. Movement compares against the report before.', ladder);
+      var raceInner;
+      var anyPts = 0;
+      rows.forEach(function (r) { r.vals.forEach(function (v) { if (v !== null) anyPts++; }); });
+      if (L < 2 || anyPts < 2) {
+        raceInner = '<div style="font-size:12.5px;color:#8a8fa6;padding:12px 0">The race view draws itself once you have at least two reports with positions. Not shown rather than guessed.</div>';
+      } else {
+        var allV = [];
+        rows.forEach(function (r) { r.vals.forEach(function (v) { if (v !== null) allV.push(v); }); });
+        var rMax = Math.max(5, Math.max.apply(null, allV));
+        var W3 = 460, H3 = 170, P3 = 12, LBL = 120;
+        var xs = function (ix) { return (P3 + ix * ((W3 - P3 * 2 - LBL) / Math.max(1, L - 1))).toFixed(1); };
+        var ys = function (v) { return (P3 + 10 + (v - 1) / Math.max(1, rMax - 1) * (H3 - P3 * 2 - 30)).toFixed(1); };
+        var pal = ['#1D9E75', '#D85A30', '#D4537E'];
+        var ci = 0;
+        var linesH = rows.map(function (r) {
+          var col = r.own ? '#0F0638' : pal[ci++ % 3];
+          var d3 = '', o3 = false, lx = null, ly = null;
+          r.vals.forEach(function (v, ix) {
+            if (v === null) { o3 = false; return; }
+            var X = xs(ix), Y = ys(v);
+            d3 += (o3 ? ' L' : ' M') + X + ',' + Y; o3 = true; lx = X; ly = Y;
+          });
+          if (!d3) return '';
+          var lastV = r.last === null ? '' : ' #' + r.last;
+          return '<path d="' + d3.replace(/^ /, '') + '" fill="none" stroke="' + col + '" stroke-width="' + (r.own ? 3 : 2) + '"></path>'
+            + '<circle cx="' + lx + '" cy="' + ly + '" r="' + (r.own ? 4.5 : 3.5) + '" fill="' + col + '"></circle>'
+            + '<text x="' + (parseFloat(lx) + 8) + '" y="' + (parseFloat(ly) + 4) + '" font-size="10.5" font-weight="' + (r.own ? '700' : '400') + '" fill="' + col + '">' + escC((r.own ? 'You' : r.name)) + lastV + '</text>';
+        }).join('');
+        raceInner = '<svg viewBox="0 0 ' + W3 + ' ' + H3 + '" style="width:100%">'
+          + '<line x1="' + P3 + '" y1="' + ys(1) + '" x2="' + (W3 - P3) + '" y2="' + ys(1) + '" stroke="#f0f0f6"></line>'
+          + '<line x1="' + P3 + '" y1="' + ys(rMax) + '" x2="' + (W3 - P3) + '" y2="' + ys(rMax) + '" stroke="#f0f0f6"></line>'
+          + '<text x="' + P3 + '" y="' + (parseFloat(ys(1)) - 5) + '" font-size="9.5" fill="#b9bccb">#1 top of the pack</text>'
+          + '<text x="' + P3 + '" y="' + (parseFloat(ys(rMax)) + 12) + '" font-size="9.5" fill="#b9bccb">#' + rMax + '</text>'
+          + linesH
+          + '<text x="' + P3 + '" y="' + (H3 - 2) + '" font-size="9.5" fill="#b9bccb">' + escC(dts[0] || '') + '</text>'
+          + '<text x="' + xs(L - 1) + '" y="' + (H3 - 2) + '" font-size="9.5" fill="#b9bccb" text-anchor="middle">' + escC(dts[L - 1] || '') + '</text>'
+          + '</svg>';
+      }
+      var raceCard = cardC('The race for the map pack', 'Position per report on your comparison keyword. The top line leads. Lower numbers are better.', raceInner);
+      return '<div class="tmc-grid">' + ladderCard + raceCard + '</div>';
+    })();
+    var trendPanelC = cardC('Rank over reports', 'Your map position and each competitor\'s, one point per report. Higher on the chart is better.', trendInnerC, true);
       var mxKeys = ['competitor_1_maps_rank_kw1','competitor_1_maps_rank_kw2','competitor_1_maps_rank_kw3','competitor_2_maps_rank_kw1','competitor_2_maps_rank_kw2','competitor_2_maps_rank_kw3','competitor_3_maps_rank_kw1','competitor_3_maps_rank_kw2','competitor_3_maps_rank_kw3'];
       var matrixC = '';
       if (latestC && mxKeys.some(function (k) { return k in latestC; })) {
@@ -1931,7 +2025,7 @@
         matrixC = cardC('Rank matrix - every keyword', 'Google local map position for each tracked keyword you monitor, from your latest report' + (latestC.snapshot_date ? ', measured ' + latestC.snapshot_date : '') + '. Lower is better. A dash means that business was not in the top local results for that search.', '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13.5px;color:#0F0638">' + mxHead + mxRows + '</table></div>', true);
       }
       htmlC = '<style>.tmc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.tmc-grid>.tmc-full{grid-column:1/-1}@media(max-width:900px){.tmc-grid{grid-template-columns:1fr}}</style><div class="tmc-grid">'
-        + verdictC + h2h + sovPanel + beatsPanel + whyPanel + trendPanelC + matrixC + '</div>';
+        + verdictC + h2h + sovPanel + beatsPanel + whyPanel + duoC + matrixC + '</div>';
     }
     var elC = document.getElementById('competitors-content');
     if (elC) { elC.innerHTML = htmlC; } else { var scC = document.getElementById('screen-competitors'); if (scC) { var oldC = scC.querySelector('.honest-inject'); if (oldC) oldC.remove(); scC.insertAdjacentHTML('beforeend', '<div class="honest-inject">' + htmlC + '</div>'); } }
