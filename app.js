@@ -2685,7 +2685,14 @@
       } else {
         comps.push({ name: 'Growth', measured: false, note: 'needs two reports' });
       }
-      comps.push({ name: 'Posting freshness', measured: false, note: 'not yet measured - excluded, never guessed' });
+      var igFr = latestOf('instagram');
+      var igLP = igFr && igFr.last_post_date ? new Date(igFr.last_post_date) : null;
+      var daysSince = igLP && !isNaN(igLP.getTime()) ? Math.floor((Date.now() - igLP.getTime()) / 86400000) : null;
+      if (daysSince !== null && daysSince >= 0) {
+        comps.push({ name: 'Posting freshness', measured: true, pts: daysSince <= 14 ? 25 : (daysSince <= 45 ? 15 : 5), max: 25, note: 'last post ' + daysSince + 'd ago' });
+      } else {
+        comps.push({ name: 'Posting freshness', measured: false, note: 'not yet measured - excluded, never guessed' });
+      }
       comps.push({ name: 'Audience quality', measured: false, note: 'not yet measured - excluded, never guessed' });
       var mComps = comps.filter(function (c) { return c.measured; });
       var scoreInner;
@@ -2729,7 +2736,7 @@
         });
         var domIx = -1, domFrac = 0;
         measured.forEach(function (P, ix) { var fr = (numS(latestOf(P.key).followers) || 0) / tot; if (fr > domFrac) { domFrac = fr; domIx = ix; } });
-        var balNote = (measured.length > 1 && domFrac >= 0.8) ? '<div style="font-size:11.5px;color:#8a8fa6;margin-top:8px">You are a ' + measured[domIx].name + '-first business. Everything else is upside.</div>' : '';
+        var balNote = (measured.length > 1 && domFrac >= 0.8) ? '<div style="font-size:11.5px;color:#8a8fa6;margin-top:8px">You are ' + measured[domIx].name + '-first. Everything else is upside.</div>' : '';
         balInner = '<div style="display:flex;align-items:center;gap:16px"><svg viewBox="0 0 80 80" style="width:84px;height:84px;flex:none">' + segs + '</svg><div style="flex:1">' + legend + balNote + '</div></div>';
       } else {
         balInner = '<div style="font-size:12.5px;color:#8a8fa6">No follower counts measured yet.</div>';
@@ -2760,6 +2767,19 @@
         aqInner = '<div style="font-size:12.5px;color:#8a8fa6;padding:6px 0">Audience quality could not be measured this month. Shown as absent, not guessed - very large accounts can take longer to analyze.</div>';
       }
       var aqCard = cardS('Audience quality - Instagram', 'How real your audience behaves. Measured, never estimated.', aqInner);
+      var pulseRows = '';
+      measured.forEach(function (P) {
+        var L3 = latestOf(P.key);
+        var lp = L3 && L3.last_post_date ? new Date(L3.last_post_date) : null;
+        if (!lp || isNaN(lp.getTime())) return;
+        var dsp = Math.floor((Date.now() - lp.getTime()) / 86400000);
+        if (dsp < 0) return;
+        var pc = dsp <= 14 ? '#2f7a12' : (dsp <= 60 ? '#a86b12' : '#c0392b');
+        var msg = dsp === 0 ? 'posted today' : (dsp === 1 ? 'posted yesterday' : 'latest measured post ' + dsp + ' days ago');
+        if (dsp > 60) msg += ' - a quiet profile costs more trust than no profile';
+        pulseRows += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f4f4f8"><span style="width:10px;height:10px;border-radius:50%;background:' + pc + ';display:inline-block"></span><div style="font-size:12.5px;font-weight:700;color:#0F0638;min-width:90px">' + P.name + '</div><div style="font-size:12px;color:#3F4157">' + msg + '</div></div>';
+      });
+      var pulseCard = cardS('Posting pulse', 'How recently each measured profile published. From the newest post timestamp in your report - never assumed.', pulseRows || '<div style="font-size:12.5px;color:#8a8fa6;padding:6px 0">Post dates arrive with your next report - the engine now measures them.</div>');
 
       window.__soGoal = function (p) {
         var inp = document.getElementById('so-goal-inp-' + p);
@@ -2793,7 +2813,7 @@
       var best = null;
       measured.forEach(function (P) { var L2 = latestOf(P.key); if (numS(L2.followers) !== null && (!best || numS(L2.followers) > best.f)) best = { name: P.name, f: numS(L2.followers) }; });
       var insight = best ? '<div class="tms-full" style="border-left:3px solid #E8400A;padding:8px 12px;background:#FFF3ED"><div style="font-size:12.5px;color:#0F0638;line-height:1.55">' + best.name + ' is your biggest measured audience at ' + fmtS(best.f) + ' ' + (best.name === 'YouTube' ? 'subscribers' : 'followers') + '.</div></div>' : '';
-      htmlSO = '<style>.tms-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.tms-grid>.tms-full{grid-column:1/-1}@media(max-width:900px){.tms-grid{grid-template-columns:minmax(0,1fr)}}</style><div class="tms-grid">' + scoreCard + medalCard + scoreRingCard + balCard + growthCard + aqCard + goalCard + insight + '</div>';
+      htmlSO = '<style>.tms-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.tms-grid>.tms-full{grid-column:1/-1}@media(max-width:900px){.tms-grid{grid-template-columns:minmax(0,1fr)}}</style><div class="tms-grid">' + scoreCard + medalCard + scoreRingCard + balCard + growthCard + aqCard + pulseCard + goalCard + insight + '</div>';
     }
     var elSO = document.getElementById('social-content');
     if (elSO) { elSO.innerHTML = htmlSO; } else { var scSO = document.getElementById('screen-social'); if (scSO) { var oldSO = scSO.querySelector('.honest-inject'); if (oldSO) oldSO.remove(); scSO.insertAdjacentHTML('beforeend', '<div class="honest-inject">' + htmlSO + '</div>'); } }
