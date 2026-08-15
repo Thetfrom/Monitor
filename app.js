@@ -2579,17 +2579,71 @@
     if (elAI) { elAI.innerHTML = htmlAI; } else { var scAI = document.getElementById('screen-ai'); if (scAI) { var oldAI = scAI.querySelector('.honest-inject'); if (oldAI) oldAI.remove(); scAI.insertAdjacentHTML('beforeend', '<div class="honest-inject">' + htmlAI + '</div>'); } }
   }
   function renderSocial() {
-    const planSO = state.data.masterRecord.plan;
-    if (planSO !== 'agency') {
-      renderUpgradePrompt('screen-social', 'Social Signals', 'Track your Instagram and LinkedIn engagement month over month. Available on Agency.');
-      return;
+    var rowsS = state.data.social_snapshots || [];
+    var escS = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
+    var numS = function (v) { if (v === null || v === undefined || v === '') return null; var n = parseFloat(v); return isNaN(n) ? null : n; };
+    var fmtS = function (n) { if (n === null) return '-'; if (n >= 1000000) return (n / 1000000).toFixed(1).replace('.0', '') + 'M'; if (n >= 1000) return (n / 1000).toFixed(1).replace('.0', '') + 'K'; return String(n); };
+    var cardS = function (title, sub, inner, full) { return '<div class="' + (full ? 'tms-full' : '') + '" style="background:#fff;border:1px solid #eceaf5;border-radius:14px;padding:18px 20px"><div style="font-weight:700;color:#0F0638;font-size:15px">' + title + '</div>' + (sub ? '<div style="font-size:12px;color:#8a8fa6;margin-top:3px;line-height:1.5">' + sub + '</div>' : '') + '<div style="margin-top:13px">' + inner + '</div></div>'; };
+    var htmlSO;
+    if (!rowsS.length) {
+      htmlSO = '<div class="empty-state"><i class="ti ti-heart"></i><p>Social signal measurement is being set up for your account. It arrives with an upcoming monthly report - no action needed on your side.</p></div>';
+    } else {
+      var byP = {};
+      rowsS.forEach(function (r) { var p = r.platform || 'unknown'; (byP[p] = byP[p] || []).push(r); });
+      Object.keys(byP).forEach(function (p) { byP[p].sort(function (x, y) { return (numS(x.report_number) || 0) - (numS(y.report_number) || 0); }); });
+      var PLATS = [
+        { key: 'instagram', name: 'Instagram', icon: 'ti-brand-instagram', fl: 'followers' },
+        { key: 'youtube', name: 'YouTube', icon: 'ti-brand-youtube', fl: 'subscribers' },
+        { key: 'tiktok', name: 'TikTok', icon: 'ti-brand-tiktok', fl: 'followers' },
+        { key: 'facebook', name: 'Facebook', icon: 'ti-brand-facebook', fl: 'followers' },
+        { key: 'linkedin', name: 'LinkedIn', icon: 'ti-brand-linkedin', fl: 'followers' },
+        { key: 'x', name: 'X', icon: 'ti-brand-x', fl: 'followers' }
+      ];
+      var latestOf = function (p) { var arr = byP[p]; return arr ? arr[arr.length - 1] : null; };
+      var board = '';
+      PLATS.forEach(function (P) {
+        var L = latestOf(P.key);
+        if (!L) return;
+        var extra = '';
+        if (P.key === 'youtube') {
+          extra = fmtS(numS(L.video_count)) + ' videos \u00b7 ' + fmtS(numS(L.total_views)) + ' total views' + (L.subscribers_hidden === true ? ' \u00b7 subscriber count hidden by the channel' : '');
+        } else if (P.key === 'instagram') {
+          var bits = [];
+          if (L.business_category) bits.push(escS(L.business_category));
+          if (L.external_url) bits.push('link in bio');
+          extra = bits.join(' \u00b7 ');
+        }
+        board += '<div style="display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid #f4f4f8"><i class="ti ' + P.icon + '" style="font-size:22px;color:#0F0638"></i><div style="flex:1;min-width:0"><a href="' + escS(L.profile_url) + '" target="_blank" rel="noopener" style="font-weight:700;color:#0F0638;font-size:13.5px;text-decoration:none">@' + escS(L.handle) + '</a>' + (extra ? '<div style="font-size:11.5px;color:#8a8fa6;margin-top:2px">' + extra + '</div>' : '') + '</div><div style="text-align:right"><div style="font-weight:700;color:#0F0638;font-size:17px">' + fmtS(numS(L.followers)) + '</div><div style="font-size:10.5px;color:#8a8fa6">' + P.fl + '</div></div></div>';
+      });
+      var scoreCard = cardS('Where you live on social', 'Measured from your latest report. Platforms without a stored handle are not shown - never guessed.', board || '<div style="font-size:12.5px;color:#8a8fa6">No platform rows in this report.</div>', true);
+      var growthInner = '', anyHist = false;
+      PLATS.forEach(function (P) {
+        var arr = byP[P.key];
+        if (!arr || arr.length < 2) return;
+        var first = numS(arr[0].followers), last = numS(arr[arr.length - 1].followers);
+        if (first === null || last === null) return;
+        anyHist = true;
+        var d = last - first;
+        var col = d > 0 ? '#2f7a12' : (d < 0 ? '#c0392b' : '#8a8fa6');
+        var lbl = d === 0 ? 'flat' : (d > 0 ? '+' + fmtS(d) : '-' + fmtS(-d));
+        growthInner += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f4f4f8"><div style="font-size:12.5px;color:#0F0638;font-weight:700">' + P.name + '</div><div style="font-size:12.5px;color:' + col + ';font-weight:700">' + lbl + ' across ' + arr.length + ' reports</div></div>';
+      });
+      if (!anyHist) growthInner = '<div style="font-size:12.5px;color:#8a8fa6;padding:6px 0">Growth draws itself once you have two reports with social data. Not shown rather than guessed.</div>';
+      var growthCard = cardS('Follower growth', 'First stored report against the latest one, per platform.', growthInner);
+      var igL = latestOf('instagram');
+      var aqInner;
+      if (igL && (numS(igL.human_score) !== null || numS(igL.avg_engagement_rate) !== null || numS(igL.bot_score) !== null)) {
+        var aqRow = function (label, val, suffix) { return '<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f4f4f8"><div style="font-size:12.5px;color:#3F4157">' + label + '</div><div style="font-size:12.5px;font-weight:700;color:#0F0638">' + (val === null ? '-' : val + suffix) + '</div></div>'; };
+        aqInner = aqRow('Human-like audience score', numS(igL.human_score), '') + aqRow('Bot score', numS(igL.bot_score), '') + aqRow('Average engagement rate', numS(igL.avg_engagement_rate), '%') + aqRow('Post timing variance', numS(igL.post_timing_variance), '');
+      } else {
+        aqInner = '<div style="font-size:12.5px;color:#8a8fa6;padding:6px 0">Audience quality could not be measured this month. Shown as absent, not guessed - very large accounts can take longer to analyze.</div>';
+      }
+      var aqCard = cardS('Audience quality - Instagram', 'How real your audience behaves. Measured, never estimated.', aqInner);
+      var best = null;
+      PLATS.forEach(function (P) { var L2 = latestOf(P.key); if (L2 && numS(L2.followers) !== null && (!best || numS(L2.followers) > best.f)) best = { name: P.name, f: numS(L2.followers) }; });
+      var insight = best ? '<div class="tms-full" style="border-left:3px solid #E8400A;padding:8px 12px;background:#FFF3ED"><div style="font-size:12.5px;color:#0F0638;line-height:1.55">' + best.name + ' is your biggest measured audience at ' + fmtS(best.f) + ' ' + (best.name === 'YouTube' ? 'subscribers' : 'followers') + '.</div></div>' : '';
+      htmlSO = '<style>.tms-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.tms-grid>.tms-full{grid-column:1/-1}@media(max-width:900px){.tms-grid{grid-template-columns:minmax(0,1fr)}}</style><div class="tms-grid">' + scoreCard + growthCard + aqCard + insight + '</div>';
     }
-    const currSO = latest();
-    const ig = currSO ? currSO.instagram_engagement_rate : null;
-    const fb = currSO ? currSO.facebook_page_score : null;
-    const sb = currSO ? currSO.instagram_shadowban_status : null;
-    const hasSO = (ig !== null && ig !== undefined && ig !== '') || (fb !== null && fb !== undefined && fb !== '');
-    const htmlSO = hasSO ? '<div class="signal-grid"><div class="signal-card"><div class="signal-card-header"><div class="signal-name">Instagram Engagement</div><div class="rag-dot ' + ((ig !== null && ig !== undefined && ig !== '') ? ragStatus('instagram_engagement_rate', ig) : 'gray') + '"></div></div><div class="signal-value">' + ((ig !== null && ig !== undefined && ig !== '') ? ig + '%' : '-') + '</div></div><div class="signal-card"><div class="signal-card-header"><div class="signal-name">Facebook Page Score</div><div class="rag-dot ' + ((fb !== null && fb !== undefined && fb !== '') ? ragStatus('facebook_page_score', fb) : 'gray') + '"></div></div><div class="signal-value">' + ((fb !== null && fb !== undefined && fb !== '') ? fb : '-') + '</div></div><div class="signal-card"><div class="signal-card-header"><div class="signal-name">Shadowban Status</div><div class="rag-dot gray"></div></div><div class="signal-value" style="font-size:16px">' + (sb || '-') + '</div></div></div>' : '<div class="empty-state"><i class="ti ti-heart"></i><p>Social signal measurement is being set up for your account. It arrives with an upcoming monthly report - no action needed on your side.</p></div>';
     var elSO = document.getElementById('social-content');
     if (elSO) { elSO.innerHTML = htmlSO; } else { var scSO = document.getElementById('screen-social'); if (scSO) { var oldSO = scSO.querySelector('.honest-inject'); if (oldSO) oldSO.remove(); scSO.insertAdjacentHTML('beforeend', '<div class="honest-inject">' + htmlSO + '</div>'); } }
   }
