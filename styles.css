@@ -1935,3 +1935,7 @@ html, body {
 .goal-edit-label { display: block; font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
 .goal-edit-row { display: flex; gap: 8px; }
 .goal-edit-hint { font-size: 11px; color: var(--text-secondary); line-height: 1.45; margin-top: 8px; }
+
+/* Theme toggle (dark mode standard) */
+.theme-toggle{background:transparent;border:1px solid rgba(255,255,255,0.3);color:var(--white);border-radius:50%;width:28px;height:28px;min-width:28px;cursor:pointer;font-size:14px;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0}
+.theme-toggle:hover{background:rgba(255,255,255,0.12)}

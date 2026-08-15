@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TAMEYO Monitor</title>
+  <script src="theme.js"></script>
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.2.0/dist/tabler-icons.min.css" />
 </head>
@@ -56,6 +57,7 @@
           <i class="ti ti-flame"></i>
           <span id="streak-label">Month 1</span>
         </div>
+        <button class="theme-toggle" id="theme-toggle" onclick="__tmToggle()" title="Light / dark mode"></button>
         <span class="plan-badge" id="plan-badge"></span>
         <button class="nav-upgrade-btn hidden" id="nav-upgrade-btn">Upgrade ↑</button>
       </div>
