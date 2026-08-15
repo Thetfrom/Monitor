@@ -2766,6 +2766,17 @@
       } else {
         aqInner = '<div style="font-size:12.5px;color:#8a8fa6;padding:6px 0">Audience quality could not be measured this month. Shown as absent, not guessed - very large accounts can take longer to analyze.</div>';
       }
+      var aqHuman = igL ? numS(igL.human_score) : null;
+      var aqBot = igL ? numS(igL.bot_score) : null;
+      if (aqHuman !== null || aqBot !== null) {
+        var hPct = aqHuman !== null ? Math.round(aqHuman * 100) : (aqBot !== null ? Math.round((1 - aqBot) * 100) : null);
+        var gCol = hPct >= 85 ? '#2f7a12' : (hPct >= 60 ? '#a86b12' : '#c0392b');
+        var gCirc = 2 * Math.PI * 30;
+        var gDash = (hPct / 100 * gCirc).toFixed(1);
+        var badge = hPct >= 85 ? '<div style="display:inline-flex;align-items:center;gap:5px;background:#e8f7e0;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;color:#2f7a12;margin-top:8px"><i class="ti ti-shield-check"></i>Audience behaves like real people</div>' : (hPct < 60 ? '<div style="display:inline-flex;align-items:center;gap:5px;background:#fde8e8;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;color:#c0392b;margin-top:8px"><i class="ti ti-alert-triangle"></i>Worth a closer look</div>' : '');
+        var er = numS(igL.avg_engagement_rate);
+        aqInner = '<div style="display:flex;align-items:center;gap:18px"><svg viewBox="0 0 80 80" style="width:84px;height:84px;flex:none"><circle cx="40" cy="40" r="30" fill="none" stroke="#f4f4f8" stroke-width="10"></circle><circle cx="40" cy="40" r="30" fill="none" stroke="' + gCol + '" stroke-width="10" stroke-linecap="round" stroke-dasharray="' + gDash + ' ' + gCirc.toFixed(1) + '" transform="rotate(-90 40 40)"></circle><text x="40" y="45" text-anchor="middle" font-size="17" font-weight="700" fill="#0F0638">' + hPct + '%</text></svg><div style="flex:1"><div style="font-size:12.5px;color:#0F0638;font-weight:700">Human-like audience</div><div style="font-size:11.5px;color:#8a8fa6;line-height:1.5;margin-top:2px">' + (aqBot !== null ? 'Bot-like signals ' + Math.round(aqBot * 100) + '%. ' : '') + (er !== null ? 'Engagement rate ' + (Math.round(er * 100) / 100) + '%.' : 'Engagement rate not measured.') + '</div>' + badge + '</div></div>';
+      }
       var aqCard = cardS('Audience quality - Instagram', 'How real your audience behaves. Measured, never estimated.', aqInner);
       var pulseRows = '';
       measured.forEach(function (P) {
