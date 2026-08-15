@@ -57,7 +57,7 @@
         status: urlData.masterRecord.status,
         businessName: urlData.masterRecord.business_name,
       };
-      state.data = { masterRecord: urlData.masterRecord, snapshots: urlData.snapshots || [], aiVisibilityChecks: urlData.ai_visibility_checks || [] };
+      state.data = { masterRecord: urlData.masterRecord, snapshots: urlData.snapshots || [], aiVisibilityChecks: urlData.ai_visibility_checks || [], socialSnapshots: urlData.social_snapshots || [] };
       onDataReady();
       return;
     }
@@ -88,7 +88,7 @@
           status: msg.masterRecord.status,
           businessName: msg.masterRecord.business_name,
         };
-        state.data = { masterRecord: msg.masterRecord, snapshots: msg.snapshots, aiVisibilityChecks: msg.ai_visibility_checks || [] };
+        state.data = { masterRecord: msg.masterRecord, snapshots: msg.snapshots, aiVisibilityChecks: msg.ai_visibility_checks || [], socialSnapshots: msg.social_snapshots || [] };
         onDataReady();
         return;
       }
@@ -2579,7 +2579,7 @@
     if (elAI) { elAI.innerHTML = htmlAI; } else { var scAI = document.getElementById('screen-ai'); if (scAI) { var oldAI = scAI.querySelector('.honest-inject'); if (oldAI) oldAI.remove(); scAI.insertAdjacentHTML('beforeend', '<div class="honest-inject">' + htmlAI + '</div>'); } }
   }
   function renderSocial() {
-    var rowsS = state.data.social_snapshots || [];
+    var rowsS = state.data.socialSnapshots || state.data.social_snapshots || [];
     var escS = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
     var numS = function (v) { if (v === null || v === undefined || v === '') return null; var n = parseFloat(v); return isNaN(n) ? null : n; };
     var fmtS = function (n) { if (n === null) return '-'; if (n >= 1000000) return (n / 1000000).toFixed(1).replace('.0', '') + 'M'; if (n >= 1000) return (n / 1000).toFixed(1).replace('.0', '') + 'K'; return String(n); };
