@@ -156,29 +156,28 @@ function mount(){
  if(document.getElementById('aivis2'))return true;
  var d=P();if(!d)return false;
  var v=build(d);if(!v)return false;
- var hs=[].slice.call(document.querySelectorAll('h1,h2,h3,h4'));
- var h=null;
- for(var i=0;i<hs.length;i++){if((hs[i].textContent||'').trim().toLowerCase()==='ai visibility'){h=hs[i];break;}}
+ var els=document.querySelectorAll('.page-title,h1,h2,h3,h4'),h=null,i2;
+ for(i2=0;i2<els.length;i2++){var t=(els[i2].textContent||'').trim().toLowerCase();
+  if(t==='ai visibility'&&els[i2].offsetParent!==null){h=els[i2];break;}}
  if(!h)return false;
  var st=document.getElementById('aivis2css');
  if(!st){st=document.createElement('style');st.id='aivis2css';st.textContent=css();document.head.appendChild(st);}
  var box=document.createElement('div');box.id='aivis2';
  var old=h.nextElementSibling;
  h.parentNode.insertBefore(box,old||null);
- if(old&&/of answers|What to do|Strong position/i.test(old.textContent||''))old.style.display='none';
+ if(old&&/of answers/i.test(old.textContent||''))old.style.display='none';
  h.style.display='none';
  box.innerHTML=render(v);
  theme(box);
  document.addEventListener('click',function(e){
-   if(e.target&&e.target.closest&&e.target.closest('.theme-toggle')){
-     setTimeout(function(){var b=document.getElementById('aivis2');if(b)theme(b);},60);}
- },true);
+  if(e.target&&e.target.closest&&e.target.closest('.theme-toggle')){
+   setTimeout(function(){var b=document.getElementById('aivis2');if(b)theme(b);},60);}},true);
  return true;
 }
 var busy=false;
-function tryMount(){ if(busy)return; busy=true; try{ mount(); }catch(e){} busy=false; }
+function tryMount(){if(busy)return;busy=true;try{mount();}catch(e){}busy=false;}
 if(document.readyState!=='loading')tryMount();else document.addEventListener('DOMContentLoaded',tryMount);
-setInterval(tryMount,700);
-try{ new MutationObserver(tryMount).observe(document.documentElement,{childList:true,subtree:true}); }catch(e){}
+setInterval(tryMount,600);
+try{new MutationObserver(tryMount).observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
 window.addEventListener('hashchange',function(){var o=document.getElementById('aivis2');if(o)o.remove();tryMount();});
 })();
