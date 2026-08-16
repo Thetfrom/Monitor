@@ -3047,7 +3047,52 @@
     navigateTo(route, context ? { context: context } : undefined);
   };
 
+  // ── RTL / BIDI SUPPORT (Hebrew, Arabic) ────────────────────────
+  // Any text node that contains Hebrew or Arabic gets dir="auto" on its
+  // parent element so the browser applies the Unicode bidi algorithm.
+  // Mixed Hebrew and English lines stay readable and punctuation lands on
+  // the correct side. Pure insertion: no existing render site is touched.
+  const RTL_RE = /[\u0590-\u05FF\u0600-\u06FF\u0700-\u074F]/;
+
+  function applyBidi(node) {
+    if (!node) return;
+    const root = node.nodeType === 1 ? node : node.parentElement;
+    if (!root || root.nodeType !== 1) return;
+    if (!RTL_RE.test(root.textContent || '')) return;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    let n;
+    while ((n = walker.nextNode())) {
+      if (!RTL_RE.test(n.nodeValue || '')) continue;
+      const el = n.parentElement;
+      if (!el || el.getAttribute('dir') === 'auto') continue;
+      el.setAttribute('dir', 'auto');
+      el.style.unicodeBidi = 'isolate';
+    }
+  }
+
+  function startBidiWatcher() {
+    applyBidi(document.body);
+    if (typeof MutationObserver === 'undefined') return;
+    const pending = [];
+    let queued = false;
+    function flush() {
+      queued = false;
+      const batch = pending.splice(0, pending.length);
+      for (let i = 0; i < batch.length; i++) applyBidi(batch[i]);
+    }
+    const obs = new MutationObserver(function (records) {
+      for (let i = 0; i < records.length; i++) {
+        const r = records[i];
+        if (r.type === 'characterData') { pending.push(r.target); continue; }
+        for (let j = 0; j < r.addedNodes.length; j++) pending.push(r.addedNodes[j]);
+      }
+      if (pending.length && !queued) { queued = true; setTimeout(flush, 0); }
+    });
+    obs.observe(document.body, { childList: true, subtree: true, characterData: true });
+  }
+
   // ── INIT ─────────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', boot);
+  document.addEventListener('DOMContentLoaded', startBidiWatcher);
 
 })();
