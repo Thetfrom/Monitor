@@ -175,9 +175,10 @@ function mount(){
  },true);
  return true;
 }
-var tries=0;
-var iv=setInterval(function(){tries++;if(mount()||tries>80)clearInterval(iv);},250);
-if(document.readyState!=='loading')mount();else document.addEventListener('DOMContentLoaded',mount);
-window.addEventListener('hashchange',function(){var o=document.getElementById('aivis2');if(o)o.remove();tries=0;
-var iv2=setInterval(function(){tries++;if(mount()||tries>40)clearInterval(iv2);},250);});
+var busy=false;
+function tryMount(){ if(busy)return; busy=true; try{ mount(); }catch(e){} busy=false; }
+if(document.readyState!=='loading')tryMount();else document.addEventListener('DOMContentLoaded',tryMount);
+setInterval(tryMount,700);
+try{ new MutationObserver(tryMount).observe(document.documentElement,{childList:true,subtree:true}); }catch(e){}
+window.addEventListener('hashchange',function(){var o=document.getElementById('aivis2');if(o)o.remove();tryMount();});
 })();
