@@ -57,7 +57,7 @@
         status: urlData.masterRecord.status,
         businessName: urlData.masterRecord.business_name,
       };
-      state.data = { masterRecord: urlData.masterRecord, snapshots: urlData.snapshots || [], aiVisibilityChecks: urlData.ai_visibility_checks || [], socialSnapshots: urlData.social_snapshots || [] };
+      state.data = { masterRecord: urlData.masterRecord, snapshots: urlData.snapshots || [], aiVisibilityChecks: urlData.ai_visibility_checks || [], socialSnapshots: urlData.social_snapshots || [], competitorSocial: urlData.competitor_social };
       onDataReady();
       return;
     }
@@ -88,7 +88,7 @@
           status: msg.masterRecord.status,
           businessName: msg.masterRecord.business_name,
         };
-        state.data = { masterRecord: msg.masterRecord, snapshots: msg.snapshots, aiVisibilityChecks: msg.ai_visibility_checks || [], socialSnapshots: msg.social_snapshots || [] };
+        state.data = { masterRecord: msg.masterRecord, snapshots: msg.snapshots, aiVisibilityChecks: msg.ai_visibility_checks || [], socialSnapshots: msg.social_snapshots || [], competitorSocial: msg.competitor_social };
         onDataReady();
         return;
       }
@@ -1853,14 +1853,14 @@
           + (c.url ? '<div style="font-size:12px;color:#8a8fa6;margin-top:2px">' + escC(c.url.replace(/^https?:\/\//, '')) + '</div>' : '<div style="font-size:12px;color:#a86b12;margin-top:2px">No website recorded, so no map rank can be matched for this slot</div>')
           + '</div>';
       }).join('');
-      var whyPanel = cardC('Why these ' + compsC.length, 'A business is only tracked here if it passes all three checks against real data.',
+      var whyPanel = cardC('How these ' + compsC.length + ' are tracked', 'Set on your account, then measured in the same search as you, every month.',
         '<div style="font-size:12.5px;color:#3f4157;line-height:1.7">'
-        + '1. It shares at least one business category with you<br>'
-        + '2. It appeared in the same local results as you for at least one of your keywords<br>'
-        + '3. It trades in your city<br>'
+        + 'They are the businesses set on your account for tracking. Nothing here is picked automatically.<br><br>'
+        + 'Every month your keyword is searched in your area and the businesses in those local results are recorded. Where one of these appears, its position is taken from that same search, on the same day as your own, so the comparison is like for like.<br><br>'
+        + 'Rank, following and activity are measured the same way for them as for you.<br>'
         + '<span style="color:#6b6b6b;font-size:12px">Opening hours are not part of this check.</span>'
         + '</div>' + whyRows
-        + '<div style="font-size:12px;color:#8a8fa6;margin-top:11px;padding-top:10px;border-top:1px solid #f4f4f8">We do not let anyone type a competitor into a box. If a business cannot pass all three checks it is left out rather than guessed at.</div>', false);
+        + '<div style="font-size:12px;color:#8a8fa6;margin-top:11px;padding-top:10px;border-top:1px solid #f4f4f8">Nothing on this panel is estimated. When one of them is missing from the results for a month, that month is left blank rather than filled in.</div>', false);
       var seriesC = [{ name: bizC, own: true, vals: snapsC.map(myRankOf) }].concat(compsC.map(function (c) {
         return { name: c.name || c.url, own: false, vals: snapsC.map(function (sn) { return num(sn['competitor_' + c.slot + '_maps_rank']); }) };
       }));
