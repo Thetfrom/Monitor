@@ -12,7 +12,7 @@ for(var i=0;i<s.length;i++){var r=s[i];var k=String(r.check_date||r.checkDate||'
 if(seen[k])continue;seen[k]=1;out.push(r);}return out;}
 function names(a){if(!a)return [];var t=String(a);var c=t.indexOf(':');
 if(c>-1&&c<160&&t.slice(0,c).split(' ').length>4)t=t.slice(c+1);
-return t.split(';').map(function(x){return x.replace(/^[\s\-\u2013\u2022\d\.\)]+/,'').trim();}).filter(function(x){return x.length>1&&x.length<60;});}
+return t.split(';').map(function(x){return x.replace(/^\s*(?:[\-\u2013\u2022]|\d+\s*[\.\)])\s*/,'').trim();}).filter(function(x){return x.length>1&&x.length<60;});}
 function pct(a,b){return b?Math.round(a/b*100):0;}
 
 function build(d){
@@ -163,9 +163,10 @@ function mount(){
  var st=document.getElementById('aivis2css');
  if(!st){st=document.createElement('style');st.id='aivis2css';st.textContent=css();document.head.appendChild(st);}
  var box=document.createElement('div');box.id='aivis2';
- var old=h.nextElementSibling;
- h.parentNode.insertBefore(box,old||null);
- if(old&&/of answers/i.test(old.textContent||''))old.style.display='none';
+ var cands=[].slice.call(document.querySelectorAll('*')).filter(function(e){var t=e.textContent||'';return /of answers/i.test(t)&&/What to do/i.test(t)&&e.offsetParent!==null;});
+ var oldCard=cands.length?cands[cands.length-1]:null;
+ if(oldCard&&oldCard.parentNode){oldCard.parentNode.insertBefore(box,oldCard);oldCard.style.display='none';}
+ else {h.parentNode.insertBefore(box,h.nextElementSibling||null);}
  h.style.display='none';
  box.innerHTML=render(v);
  theme(box);
