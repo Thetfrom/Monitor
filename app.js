@@ -1718,7 +1718,7 @@
     });
     var htmlC;
     if (!compsC.length) {
-      htmlC = '<div class="empty-state"><i class="ti ti-users"></i><p>Your three direct competitors are being identified from the businesses that rank alongside you for your own keywords. They appear here once each one is confirmed.</p></div>';
+      htmlC = '<div class="empty-state"><i class="ti ti-users"></i><p>No competitors are set on your account yet. Once up to three are added, their map ranking and following are tracked here every month beside yours.</p></div>';
     } else {
       snapsC.sort(function (a, b) {
         var ra = num(a.report_number), rb = num(b.report_number);
@@ -2827,7 +2827,9 @@
       var ladderCard = (function () {
           var planL = String((state.data.masterRecord && state.data.masterRecord.plan) || '').toLowerCase();
           if (planL !== 'agency') return '';
-          var compAll = state.data.competitorSocial || state.data.competitor_social || [];
+          var rawComp = (state.data.competitorSocial !== undefined) ? state.data.competitorSocial : state.data.competitor_social;
+          var compWired = (rawComp !== undefined && rawComp !== null);
+          var compAll = compWired ? rawComp : [];
           var ownIG = null;
           rowsS.forEach(function (r) {
             if (String(r.platform || '').toLowerCase() !== 'instagram') return;
@@ -2846,7 +2848,10 @@
           var LT = 'Follower ladder';
           var LS = 'Instagram following, you against your tracked competitors. Latest measured report.';
           if (!comps.length) {
-            return cardS(LT, LS, '<div style="font-size:12.5px;color:#8a8fa6;padding:8px 0">Competitor social has not been measured yet. Once your competitors\u2019 Instagram handles are set, their follower counts appear here beside yours.</div>', true);
+            var absMsg = compWired
+              ? 'No competitors are set on your account yet. Add up to three and their following appears here from the next report.'
+              : 'Competitor tracking is not connected on this dashboard yet, so nothing has been measured. If you were expecting figures here, this is a setup issue rather than an empty month.';
+            return cardS(LT, LS, '<div style="font-size:12.5px;color:#8a8fa6;padding:8px 0">' + absMsg + '</div>', true);
           }
           var measured = [], unmeasured = [];
           comps.forEach(function (r) {
