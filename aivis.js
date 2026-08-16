@@ -95,7 +95,7 @@ return '<div class="hd"><div>'
 +'<p class="fine">Keywords a model did not answer are left out of the total.</p></div></div>'
 +'<div class="dv"></div>'
 +'<div class="rg"><p class="cmp">'+cmp+'</p>'+worth
-+'<div class="cal"><div class="bg">\u1F4A1</div><div><h4>Advisor Recommendation</h4><p><b>What to do:</b> '+todo+'</p></div></div>'
++'<div class="cal"><div class="bg">\uD83D\uDCA1</div><div><h4>Advisor Recommendation</h4><p><b>What to do:</b> '+todo+'</p></div></div>'
 +'</div></div></div>';
 }
 function theme(el){
