@@ -2824,7 +2824,70 @@
       var best = null;
       measured.forEach(function (P) { var L2 = latestOf(P.key); if (numS(L2.followers) !== null && (!best || numS(L2.followers) > best.f)) best = { name: P.name, f: numS(L2.followers) }; });
       var insight = best ? '<div class="tms-full" style="border-left:3px solid #E8400A;padding:8px 12px;background:#FFF3ED"><div style="font-size:12.5px;color:#0F0638;line-height:1.55">' + best.name + ' is your biggest measured audience at ' + fmtS(best.f) + ' ' + (best.name === 'YouTube' ? 'subscribers' : 'followers') + '.</div></div>' : '';
-      htmlSO = '<style>.tms-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.tms-grid>.tms-full{grid-column:1/-1}@media(max-width:900px){.tms-grid{grid-template-columns:minmax(0,1fr)}}</style><div class="tms-grid">' + scoreCard + medalCard + scoreRingCard + balCard + growthCard + aqCard + pulseCard + goalCard + insight + '</div>';
+      var ladderCard = (function () {
+          var planL = String((state.data.masterRecord && state.data.masterRecord.plan) || '').toLowerCase();
+          if (planL !== 'agency') return '';
+          var compAll = state.data.competitorSocial || state.data.competitor_social || [];
+          var ownIG = null;
+          rowsS.forEach(function (r) {
+            if (String(r.platform || '').toLowerCase() !== 'instagram') return;
+            var rn = numS(r.report_number) || 0;
+            if (!ownIG || rn >= (numS(ownIG.report_number) || 0)) ownIG = r;
+          });
+          var byC = {};
+          compAll.forEach(function (r) {
+            if (String(r.platform || '').toLowerCase() !== 'instagram') return;
+            var key = String(r.competitor_label || r.handle || '');
+            if (!key) return;
+            var rn = numS(r.report_number) || 0;
+            if (!byC[key] || rn >= (numS(byC[key].report_number) || 0)) byC[key] = r;
+          });
+          var comps = Object.keys(byC).map(function (k) { return byC[k]; });
+          var LT = 'Follower ladder';
+          var LS = 'Instagram following, you against your tracked competitors. Latest measured report.';
+          if (!comps.length) {
+            return cardS(LT, LS, '<div style="font-size:12.5px;color:#8a8fa6;padding:8px 0">Competitor social has not been measured yet. Once your competitors\u2019 Instagram handles are set, their follower counts appear here beside yours.</div>', true);
+          }
+          var measured = [], unmeasured = [];
+          comps.forEach(function (r) {
+            var f = numS(r.followers);
+            var nm = String(r.competitor_label || r.handle || 'Competitor');
+            if (f === null) unmeasured.push(nm); else measured.push({ name: nm, f: f, own: false });
+          });
+          var ownF = ownIG ? numS(ownIG.followers) : null;
+          if (ownF !== null) measured.push({ name: 'You', f: ownF, own: true });
+          if (!measured.length) {
+            return cardS(LT, LS, '<div style="font-size:12.5px;color:#8a8fa6;padding:8px 0">None of your tracked competitors returned a follower count this month, so no ladder can be drawn. Nothing here is estimated.</div>', true);
+          }
+          measured.sort(function (a, b) { return b.f - a.f; });
+          var maxF = measured[0].f || 1;
+          var bars = measured.map(function (r) {
+            var w = Math.max(6, Math.round((r.f / maxF) * 100));
+            var bg = r.own ? '#E8400A' : '#cfd2e2';
+            var tc = r.own ? '#ffffff' : '#0F0638';
+            return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+              + '<div style="min-width:130px;font-size:12.5px;color:#0F0638;font-weight:' + (r.own ? '700' : '400') + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escS(r.name) + '</div>'
+              + '<div style="flex:1;background:#f7f7fb;border-radius:4px;height:18px"><div style="width:' + w + '%;height:18px;border-radius:4px;background:' + bg + ';display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:10px;color:' + tc + ';font-weight:700;min-width:56px;box-sizing:border-box">' + fmtS(r.f) + '</div></div></div>';
+          }).join('');
+          var note = unmeasured.length ? '<div style="font-size:11.5px;color:#b9bccb;margin-top:4px">Not measured this month: ' + escS(unmeasured.join(', ')) + '</div>' : '';
+          var ins = '';
+          if (ownF === null) {
+            ins = '<div style="font-size:12.5px;color:#8a8fa6;margin-top:10px">Your own Instagram following was not measured this month, so no gap can be calculated.</div>';
+          } else {
+            var pos = 0;
+            for (var i2 = 0; i2 < measured.length; i2++) { if (measured[i2].own) { pos = i2 + 1; break; } }
+            var line;
+            if (pos === 1) {
+              line = measured.length > 1 ? 'You lead the measured set by ' + fmtS(ownF - measured[1].f) + ' followers.' : 'You are the only measured account this month.';
+            } else {
+              var ah = measured[pos - 2];
+              line = 'You are ' + pos + ' of ' + measured.length + ' measured. ' + escS(ah.name) + ' is ' + fmtS(ah.f - ownF) + ' followers ahead.';
+            }
+            ins = '<div style="border-left:3px solid #E8400A;padding:8px 12px;background:#FFF3ED;margin-top:12px"><div style="font-size:12.5px;color:#0F0638;line-height:1.55">' + line + '</div></div>';
+          }
+          return cardS(LT, LS, bars + note + ins, true);
+        })();
+        htmlSO = '<style>.tms-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.tms-grid>.tms-full{grid-column:1/-1}@media(max-width:900px){.tms-grid{grid-template-columns:minmax(0,1fr)}}</style><div class="tms-grid">' + scoreCard + medalCard + scoreRingCard + balCard + growthCard + aqCard + pulseCard + goalCard + ladderCard + insight + '</div>';
     }
     var elSO = document.getElementById('social-content');
     if (elSO) { elSO.innerHTML = htmlSO; } else { var scSO = document.getElementById('screen-social'); if (scSO) { var oldSO = scSO.querySelector('.honest-inject'); if (oldSO) oldSO.remove(); scSO.insertAdjacentHTML('beforeend', '<div class="honest-inject">' + htmlSO + '</div>'); } }
