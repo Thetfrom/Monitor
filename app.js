@@ -1,3 +1,4 @@
+function dedupeAiChecks(rows){if(!rows||!rows.length)return rows||[];var seen={},out=[],i,r,key,dt;var sorted=rows.slice().sort(function(a,b){var x=(a&&a._createdDate&&a._createdDate.$date)||a&&a._createdDate||"";var y=(b&&b._createdDate&&b._createdDate.$date)||b&&b._createdDate||"";return String(x)<String(y)?-1:(String(x)>String(y)?1:0);});for(i=0;i<sorted.length;i++){r=sorted[i];dt=(r&&(r.check_date||r.checkDate))||"";key=String(dt)+"|"+String((r&&r.model)||"");if(seen[key])continue;seen[key]=1;out.push(r);}return out;}
 // TAMEYO Monitor - Enhanced App Logic v2.0
 // Features derived from real snapshot data. Every button wired. Clean layout.
 
@@ -57,7 +58,7 @@
         status: urlData.masterRecord.status,
         businessName: urlData.masterRecord.business_name,
       };
-      state.data = { masterRecord: urlData.masterRecord, snapshots: urlData.snapshots || [], aiVisibilityChecks: urlData.ai_visibility_checks || [], socialSnapshots: urlData.social_snapshots || [], competitorSocial: urlData.competitor_social };
+      state.data = { masterRecord: urlData.masterRecord, snapshots: urlData.snapshots || [], aiVisibilityChecks: dedupeAiChecks(urlData.ai_visibility_checks || []), socialSnapshots: urlData.social_snapshots || [], competitorSocial: urlData.competitor_social };
       onDataReady();
       return;
     }
@@ -88,7 +89,7 @@
           status: msg.masterRecord.status,
           businessName: msg.masterRecord.business_name,
         };
-        state.data = { masterRecord: msg.masterRecord, snapshots: msg.snapshots, aiVisibilityChecks: msg.ai_visibility_checks || [], socialSnapshots: msg.social_snapshots || [], competitorSocial: msg.competitor_social };
+        state.data = { masterRecord: msg.masterRecord, snapshots: msg.snapshots, aiVisibilityChecks: dedupeAiChecks(msg.ai_visibility_checks || []), socialSnapshots: msg.social_snapshots || [], competitorSocial: msg.competitor_social };
         onDataReady();
         return;
       }
