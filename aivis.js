@@ -222,7 +222,7 @@ var val=function(d,m,n){var r=byd[d+'|'+m];if(!r)return null;var x=String(r['kw'
 var cap=function(m){return m==='glm'?'GLM':(m.charAt(0).toUpperCase()+m.slice(1));};
 var cards=v.mk.map(function(m){
  var yes=[],no=[],ans=0;
- for(var n=1;n<=3;n++){var t=val(v.today,m,n);if(t===null)continue;ans++;if(t==='yes')yes.push(kws[n-1]);else no.push(kws[n-1]);}
+ for(var n=1;n<=3;n++){var t=val(v.today,m,n);if(t===null)continue;var kwn=kws[n-1];if(!kwn)continue;ans++;if(t==='yes')yes.push(kwn);else no.push(kwn);}
  var streak=0;
  for(var i=v.dates.length-1;i>=0;i--){var d=v.dates[i],ok=true,any=false;
   for(var n2=1;n2<=3;n2++){var x=val(d,m,n2);if(x===null)continue;any=true;if(x==='no'){ok=false;break;}}
@@ -232,7 +232,8 @@ var cards=v.mk.map(function(m){
   for(var n3=1;n3<=3;n3++){if(val(pd,m,n3)==='yes'&&val(dd,m,n3)==='no'){hit=true;break;}}
   if(hit){drop=dd;break;}}
  var bl,bc;
- if(streak>=2){bl='\uD83D\uDD25 '+streak+' perfect checks in a row';bc='ok';}
+ if(!ans){bl='\u2014 No answer returned';bc='warn';}
+ else if(streak>=2){bl='\uD83D\uDD25 '+streak+' perfect checks in a row';bc='ok';}
  else if(drop){bl='\u26A0 Dropped on '+drop;bc='warn';}
  else if(no.length){bl='\u26A1 Mixed results';bc='warn';}
  else{bl='\uD83D\uDD25 Named on every keyword';bc='ok';}
@@ -243,11 +244,11 @@ var cards=v.mk.map(function(m){
  else{body='Names you for '+yes.map(function(k){return '"'+k+'"';}).join(' and ')+'. Does not name you for '+no.map(function(k){return '"'+k+'"';}).join(' or ')+'.';}
  return {m:m,n:cap(m),y:yes.length,a:ans,bl:bl,bc:bc,body:body};});
 if(!cards.length)return '';
-var worst=null;cards.forEach(function(c){var rt=c.a?c.y/c.a:1;if(worst===null||rt<worst.r)worst={m:c.m,r:rt};});
+var worst=null;cards.forEach(function(c){if(!c.a)return;var rt=c.y/c.a;if(worst===null||rt<worst.r)worst={m:c.m,r:rt};});
 return '<div class="s5"><h3 class="s5h">How AI Models See You This Week</h3><div class="s5g">'
-+cards.map(function(c){var rt=c.a?c.y/c.a:1;var sc=rt===1?'':(rt>=0.5?'mid':'low');
- return '<div class="mc'+(worst&&c.m===worst.m&&rt<1?' warn':'')+'">'
- +'<div class="mch"><span class="mcn">'+E(c.n)+'</span><span class="mcs '+sc+'">'+c.y+'/'+c.a+' score</span></div>'
++cards.map(function(c){var rt=c.a?c.y/c.a:null;var sc=(rt===null||rt<0.5)?'low':(rt===1?'':'mid');
+ return '<div class="mc'+((!c.a||(worst&&c.m===worst.m&&rt<1))?' warn':'')+'">'
+ +'<div class="mch"><span class="mcn">'+E(c.n)+'</span><span class="mcs '+sc+'">'+(c.a?(c.y+'/'+c.a+' score'):'no answer')+'</span></div>'
  +'<p class="mcb '+c.bc+'">'+E(c.bl)+'</p>'
  +'<p class="mcp">'+E(c.body)+'</p></div>';}).join('')
 +'</div></div>';
