@@ -31,6 +31,7 @@ for(var n=1;n<=3;n++){if(String(r['kw'+n+'_mentioned']||'').toLowerCase()==='yes
 var mk=Object.keys(mods);var named=mk.filter(function(m){return mods[m];});
 
 var tally={};rows.forEach(function(r){for(var n=1;n<=3;n++){
+var mv=String(r['kw'+n+'_mentioned']||'').toLowerCase();if(mv!=='yes'&&mv!=='no')continue;
 var seen={};names(r['answer_kw'+n]).forEach(function(x){var k=N(x);if(!k||seen[k])return;seen[k]=1;
 tally[k]=tally[k]||{n:x,c:0};tally[k].c++;});}});
 var mek=N(me);var rk=rivals.map(N);
