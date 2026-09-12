@@ -83,6 +83,34 @@ the last 7 days, with the sizing reasoning in comments. Wix does not load it —
 it is meant to be read alongside the live Page Code and pasted in after the two
 open questions at the bottom of it are checked.
 
+## The Make writer, and why it stopped
+
+Verified 12 Sep 2026. Scenario 6905973 (AI Visibility Daily) had been off since
+19 Aug — Make auto-disables after 3 consecutive failures — because its four Wix
+insert modules build the request as a raw JSON string with model answer text
+pasted straight in. Newlines were stripped; double quotes were not. The first
+answer containing a `"` broke the body ("The provided JSON body content is not
+valid JSON"). The Monthly Engine (6256592) had the same construct on its twelve
+`recommendedAction*` fields, with no newline handling at all.
+
+Both are patched. Each text field is now wrapped as:
+
+```
+replace(replace(replace(replace(replace(X; newline; " "); carriagereturn; " ");
+  tab; " "); decodeURL("%5C"); "/"); decodeURL("%22"); "'")
+```
+
+Two things learned the hard way, for whoever edits these next:
+
+- Make's `replace()` accepts regex literals, but a regex with hex escapes
+  (`/\x22/g`) fails **scenario validation at run time** — the API accepts the
+  blueprint, `isinvalid` stays false, and the first execution dies with
+  "Scenario validation failed - N problem(s) found". `decodeURL("%22")` is the
+  quote-safe way to write a `"` inside a Make expression.
+- `validate_module_configuration` checks field types only, not expression
+  syntax. The only real test is a run. A manual run of the Monthly Engine on a
+  day that isn't anyone's `runDay` costs 2 operations and sends nothing.
+
 ## What to do with this folder
 
 Either bring these files into line with the live implementation, or delete them.
