@@ -76,6 +76,13 @@ reaches the browser. Adding those three fields is a Page Code change, and worth
 capping to recent rows: each is up to 400 characters, so three per row across
 90 days would add roughly 278,000 characters to a URL fragment.
 
+`pages/MyDashboard.payload.js` is the exception in this folder: it is a
+deliberate reference implementation of that block, not a stale description of
+one. It caps the history to 45 days and adds `answer_text_kw1..3` to rows from
+the last 7 days, with the sizing reasoning in comments. Wix does not load it —
+it is meant to be read alongside the live Page Code and pasted in after the two
+open questions at the bottom of it are checked.
+
 ## What to do with this folder
 
 Either bring these files into line with the live implementation, or delete them.
