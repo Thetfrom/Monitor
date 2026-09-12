@@ -60,7 +60,7 @@ export async function buildAiChecks(subscriberId) {
   // `.limit(1000)` because wix-data defaults to 50 and would silently truncate
   // the history to a fortnight. 45 days x 4 model lanes is ~180 rows, so 1000
   // is headroom, not an expectation.
-  const res = await wixData.query('AIVisibilityChecks')
+  const res = await wixData.query('AiVisibilityChecks')
     .eq('subscriberId', subscriberId)
     .ge('checkDate', historyCutoff)
     .ascending('checkDate')
@@ -103,14 +103,11 @@ export async function buildAiChecks(subscriberId) {
 //   };
 //   const d = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
 //
-// Two things to confirm against the live page before pasting any of this in,
-// because this file was written without being able to read it:
-//
-//   * the collection id. 'AIVisibilityChecks' is the likely name; the live
-//     query is the authority.
-//   * the CMS column ids for the mentioned flags. They are camelCase, but
-//     whether they are `kw1Mentioned` or `kw1_mentioned` in the CMS depends on
-//     how the Make writer created the columns.
-//
-// Everything else — the cap, the windows, the snake_case output keys — is
-// confirmed against aivis.js and a decoded live fragment.
+// Collection id and every column name above are confirmed against the Make
+// writer's insert body (scenario 6905973, modules 6/10/14/18):
+// `AiVisibilityChecks`, `subscriberId`, `checkDate`, `model`, `kw1Mentioned`,
+// `answerKw1`, `answerTextKw1`, `score`. The snake_case output keys are
+// confirmed against aivis.js and a decoded live fragment. The one thing still
+// unread is the live page itself — the variable it assigns the array to and
+// the exact call site — which is why this stays a reference rather than a
+// drop-in.
