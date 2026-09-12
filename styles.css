@@ -1275,6 +1275,27 @@ html, body {
 .divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 
 /* ── RESPONSIVE ──────────────────────────────────────── */
+/* Ten tabs plus the logo and account chips do not fit a 1280px laptop at the
+   desktop sizing: "Overview" slid under the logo and "Settings" was cut off. */
+@media (max-width: 1366px) {
+  .nav-tab { padding: 8px 9px; font-size: 12.5px; }
+  .nav-tab .ti { display: none; }
+  .nav-tabs { justify-content: flex-start; }
+}
+/* Below 900px the tabs move to their own full-width row so they are never
+   hidden off-screen on a phone; the row scrolls sideways and fades at the edge. */
+@media (max-width: 900px) {
+  #main-nav { flex-wrap: wrap; height: auto; min-height: var(--nav-height); padding: 8px 12px; row-gap: 2px; }
+  .nav-logo { order: 1; }
+  .nav-right { order: 2; margin-left: auto; }
+  .nav-tabs {
+    order: 3; flex: 0 0 100%; width: 100%; justify-content: flex-start;
+    padding: 2px 0 6px; -webkit-overflow-scrolling: touch;
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+  .nav-tab .ti { display: inline; }
+}
 @media (max-width: 768px) {
   #main-nav { padding: 0 12px; }
   #page-content { padding: 16px 12px; }

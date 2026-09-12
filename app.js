@@ -501,7 +501,9 @@ function dedupeAiChecks(rows){if(!rows||!rows.length)return rows||[];var seen={}
       for (let i = snapshots.length - 1; i >= 0; i--) {
         const v = snapshots[i][f.field];
         if (v === null || v === undefined) break;
-        if (ragStatus(f.field, v) !== 'green') count++;
+        // Only a red signal is a "concern"; amber is watch-list. Counting amber
+        // here flagged a 4.5-star rating as a months-long problem.
+        if (ragStatus(f.field, v) === 'red') count++;
         else break;
       }
       if (count > worstCount) { worstCount = count; worst = { ...f, months: count }; }
@@ -573,16 +575,50 @@ function dedupeAiChecks(rows){if(!rows||!rows.length)return rows||[];var seen={}
     const plan = state.data.masterRecord.plan;
     document.getElementById('reactivation-archive-text').innerHTML =
       `You have <strong>${count} month${count !== 1 ? 's' : ''}</strong> of monitoring data in your archive.`;
-    const urls = {
-      lite: 'https://www.tameyogroup.com/checkout?checkoutId=lite-plan-id',
-      pro: 'https://www.tameyogroup.com/checkout?checkoutId=pro-plan-id',
-      agency: 'https://www.tameyogroup.com/checkout?checkoutId=agency-plan-id',
-    };
-    document.getElementById('btn-reactivate-main').href = urls[plan] || urls.pro;
+    // Every other purchase path in the app goes through the pricing page; the
+    // per-plan checkout ids this used to carry were placeholders that never
+    // resolved, so a lapsed subscriber got a dead link.
+    const reactivateBtn = document.getElementById('btn-reactivate-main');
+    reactivateBtn.href = 'https://www.tameyogroup.com/pricing-plans?plan=' + encodeURIComponent(plan || 'pro');
+    reactivateBtn.target = '_blank';
     document.getElementById('btn-view-archives').onclick = () => navigateTo('reports');
   }
 
   // ── S-04: OVERVIEW ───────────────────────────────────────────────────
+  // A subscriber whose first report has not run yet used to land on an empty
+  // page here once they dismissed onboarding. Tell them what is coming and when.
+  function renderOverviewPending(mr) {
+    const runDay = Number(mr.run_day) || 1;
+    const now = new Date();
+    const next = new Date(now.getFullYear(), now.getMonth(), runDay);
+    if (next <= now) next.setMonth(next.getMonth() + 1);
+    const nextDate = next.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+    const daysLeft = Math.max(0, Math.ceil((next - now) / 86400000));
+    ['overview-new-report-banner', 'overview-paused-banner', 'overview-welcome'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    document.getElementById('presence-hero').innerHTML = `
+      <div class="presence-score-block">
+        <div class="presence-label">Presence Score</div>
+        <div class="presence-number" style="opacity:0.35">&mdash;</div>
+        <div class="presence-delta delta-neutral">First report scheduled for ${nextDate}</div>
+        <div class="presence-meta">We measure ${escapeHtml(mr.target_keyword_1 || 'your keyword')} for ${escapeHtml(mr.business_name || 'your business')} on that day and every month after. Nothing is estimated before it is measured.</div>
+      </div>
+      <div class="presence-right">
+        <div class="report-number-badge">Report #1 pending</div>
+        <div class="countdown-block">
+          <div class="countdown-label">First report in</div>
+          <div class="countdown-value">${daysLeft} day${daysLeft === 1 ? '' : 's'}</div>
+        </div>
+      </div>`;
+    document.getElementById('stats-row').innerHTML = '';
+    document.getElementById('priority-action-section').innerHTML = `
+      <div class="empty-state"><i class="ti ti-calendar-event"></i><p>Your monthly fix plan appears with Report #1. Until then, the email delivery address on file is <strong>${escapeHtml(mr.email || '-')}</strong>.</p></div>`;
+    document.getElementById('signal-grid-overview').innerHTML = `
+      <div class="empty-state"><i class="ti ti-antenna"></i><p>Signals are measured on report day. Nothing is shown before it is measured.</p></div>`;
+    const chartEmpty = document.getElementById('overview-chart-empty');
+    if (chartEmpty) { chartEmpty.classList.remove('hidden'); chartEmpty.querySelector('p').textContent = 'Your trend line appears after Report #2'; }
+  }
+  function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
   // ── Safe storage (localStorage with graceful fallback) ──────────────
   function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ try{ return sessionStorage.getItem(k); }catch(e2){ return null; } } }
   function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){ try{ sessionStorage.setItem(k,v); }catch(e2){} } }
@@ -677,7 +713,7 @@ function dedupeAiChecks(rows){if(!rows||!rows.length)return rows||[];var seen={}
     const status = mr.status;
 
     if (status === 'cancelled') { navigateTo('reactivation'); return; }
-    if (snapshots.length === 0) return;
+    if (snapshots.length === 0) { renderOverviewPending(mr); return; }
 
     const curr = latest();
     const prevSnap = prev();
@@ -1603,7 +1639,12 @@ function dedupeAiChecks(rows){if(!rows||!rows.length)return rows||[];var seen={}
     }
 
     const subscriberId = state.data.masterRecord.subscriber_id;
-    const actionItems = snapshots.map((s, i) => {
+    // One action per calendar month. Several reports in one month (re-runs,
+    // test runs) would otherwise list the same action several times over.
+    const lastPerMonth = {};
+    snapshots.forEach((s, i) => { lastPerMonth[String(s.snapshot_date || '').slice(0, 7) || i] = i; });
+    const monthIdx = Object.values(lastPerMonth).sort((a, b) => a - b);
+    const actionItems = monthIdx.map(i => { const s = snapshots[i];
       const a = getPriorityAction(s, snapshots[i - 1] || null, plan);
       const isCurrentMonth = i === snapshots.length - 1;
       const doneKey = `action_done_${subscriberId}_${s.report_number}`;
@@ -2209,13 +2250,14 @@ function dedupeAiChecks(rows){if(!rows||!rows.length)return rows||[];var seen={}
       <div class="settings-section">
         <div class="settings-section-title">ACCOUNT ACTIONS</div>
 
+        ${mr.plan !== 'agency' ? `
         <div class="settings-action-row">
           <div class="settings-action-info">
             <div class="settings-action-title">Upgrade your plan</div>
             <div class="settings-action-sub">Unlock more signals, competitor tracking, and AI visibility</div>
           </div>
           <button class="btn-settings-action btn-settings-upgrade" onclick="window.__openUpgrade('nav')">Upgrade ↑</button>
-        </div>
+        </div>` : ''}
 
         <div class="settings-action-row">
           <div class="settings-action-info">
@@ -2292,7 +2334,10 @@ function dedupeAiChecks(rows){if(!rows||!rows.length)return rows||[];var seen={}
       var prevRows = prevD ? rowsAll.filter(function (c) { return c.check_date === prevD; }) : [];
       var ansOf = function (rows) { var a = []; rows.forEach(function (c) { [1, 2, 3].forEach(function (n) { var v = c['answer_kw' + n]; if (v) a.push({ t: v, k: n - 1, m: c.model }); }); }); return a; };
       var ansToday = ansOf(todayRows), ansPrev = ansOf(prevRows);
-      var cntIn = function (list, name) { var nn = normAI(name); if (!nn) return 0; return list.filter(function (a) { return normAI(a.t).indexOf(nn) !== -1; }).length; };
+      // Whole-name match only. A plain substring test counted "STRA" inside
+      // "straightforward" and credited a rival with answers it was never in.
+      var nameRx = function (name) { var nn = normAI(name); if (!nn) return null; return new RegExp('(^|[^a-z0-9])' + nn.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^a-z0-9]|$)'); };
+      var cntIn = function (list, name) { var rx = nameRx(name); if (!rx) return 0; return list.filter(function (a) { return rx.test(normAI(a.t)); }).length; };
       var ents = [];
       if (bizAI) ents.push({ n: bizAI, own: true });
       [mrAI.competitor_1_name, mrAI.competitor_2_name, mrAI.competitor_3_name].forEach(function (cn) { if (cn) ents.push({ n: cn, own: false }); });
