@@ -83,6 +83,32 @@ the last 7 days, with the sizing reasoning in comments. Wix does not load it —
 it is meant to be read alongside the live Page Code and pasted in after the two
 open questions at the bottom of it are checked.
 
+## The read endpoint (14 Sep 2026) — why the Page Code no longer blocks this
+
+The Page Code could not be read (no GitHub App access to `my-site-4`, no API
+exposes Velo source), so the dependency was removed instead. Make scenario
+**7414144 "Monitor Dashboard Read"** (webhook 3721865) answers
+
+```
+GET https://hook.eu1.make.com/ysmrqbuliazwab43h1yczavtqgearmo6?subscriber_id=TM-…&email=…
+```
+
+with `{ok, subscriber_id, ai: <raw Wix query of AiVisibilityChecks, newest 200>,
+competitor: <raw Wix query of MonitorCompetitorSocial, newest 120>}`. Both the
+subscriber id and the email on that row must match, otherwise 403. Responses
+carry `Access-Control-Allow-Origin: *`; the call is a plain GET so there is no
+preflight.
+
+`app.js` (`supplementFromMake`) calls it on every load after reading the
+`#d=` payload, converts the camelCase columns to the snake_case keys the app
+reads, and replaces `aiVisibilityChecks` (when Make has at least as many rows,
+now including `answer_text_kw*`) and sets `competitorSocial`. Any failure or an
+8 s timeout falls back to the payload as sent. Verified against TM-2026-0047:
+39 AI rows returned, wrong email → 403.
+
+So the `#d=` payload only needs `masterRecord` (with `email`), `snapshots` and
+`social_snapshots`. `pages/MyDashboard.payload.js` is now optional history.
+
 ## The Make writer, and why it stopped
 
 Verified 12 Sep 2026. Scenario 6905973 (AI Visibility Daily) had been off since

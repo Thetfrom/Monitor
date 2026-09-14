@@ -9,6 +9,15 @@ function dedupeAiChecks(rows){if(!rows||!rows.length)return rows||[];var seen={}
 
   const ALLOWED_ORIGIN = 'https://www.tameyogroup.com';
   const MAKE_READ_ENDPOINT = '';
+  // Read-only Make webhook (scenario "Monitor Dashboard Read"). Given a
+  // subscriber id AND the email on that row it returns the subscriber's
+  // AiVisibilityChecks and MonitorCompetitorSocial rows straight from the CMS.
+  // The Wix page payload (#d=) does not carry competitor social at all and
+  // carries AI checks without answer text, so this fills both gaps without a
+  // Page Code change. Called with GET + query string so the browser sends no
+  // CORS preflight. Any failure falls back to whatever the payload carried.
+  const SUPPLEMENT_ENDPOINT = 'https://hook.eu1.make.com/ysmrqbuliazwab43h1yczavtqgearmo6';
+  const SUPPLEMENT_TIMEOUT_MS = 8000;
 
   let state = {
     auth: null,
@@ -54,14 +63,7 @@ function dedupeAiChecks(rows){if(!rows||!rows.length)return rows||[];var seen={}
     const urlData = readUrlData();
     if (urlData === 'noaccount') { showScreen('screen-no-account'); return; }
     if (urlData) {
-      state.auth = {
-        subscriberId: urlData.masterRecord.subscriber_id,
-        plan: urlData.masterRecord.plan,
-        status: urlData.masterRecord.status,
-        businessName: urlData.masterRecord.business_name,
-      };
-      state.data = { masterRecord: urlData.masterRecord, snapshots: urlData.snapshots || [], aiVisibilityChecks: dedupeAiChecks(urlData.ai_visibility_checks || []), socialSnapshots: urlData.social_snapshots || [], competitorSocial: urlData.competitor_social };
-      onDataReady();
+      acceptPayload(urlData);
       return;
     }
 
@@ -85,14 +87,7 @@ function dedupeAiChecks(rows){if(!rows||!rows.length)return rows||[];var seen={}
         clearTimeout(timeout);
         window.removeEventListener('message', handler);
         if (!msg.masterRecord || !msg.snapshots) { showScreen('screen-no-account'); return; }
-        state.auth = {
-          subscriberId: msg.masterRecord.subscriber_id,
-          plan: msg.masterRecord.plan,
-          status: msg.masterRecord.status,
-          businessName: msg.masterRecord.business_name,
-        };
-        state.data = { masterRecord: msg.masterRecord, snapshots: msg.snapshots, aiVisibilityChecks: dedupeAiChecks(msg.ai_visibility_checks || []), socialSnapshots: msg.social_snapshots || [], competitorSocial: msg.competitor_social };
-        onDataReady();
+        acceptPayload(msg);
         return;
       }
       if (msg.type !== 'auth') return;
@@ -101,6 +96,64 @@ function dedupeAiChecks(rows){if(!rows||!rows.length)return rows||[];var seen={}
       state.auth = { subscriberId: msg.subscriberId, plan: msg.plan, status: msg.status, businessName: msg.businessName };
       fetchSubscriberData(msg.subscriberId);
     });
+  }
+
+  // Shared entry for both delivery routes (URL fragment and postMessage).
+  // Stores the payload, then asks Make for the two collections the Wix page
+  // does not (fully) send before rendering.
+  function acceptPayload(p) {
+    state.auth = {
+      subscriberId: p.masterRecord.subscriber_id,
+      plan: p.masterRecord.plan,
+      status: p.masterRecord.status,
+      businessName: p.masterRecord.business_name,
+    };
+    state.data = { masterRecord: p.masterRecord, snapshots: p.snapshots || [], aiVisibilityChecks: dedupeAiChecks(p.ai_visibility_checks || []), socialSnapshots: p.social_snapshots || [], competitorSocial: p.competitor_social };
+    supplementFromMake(p.masterRecord, onDataReady);
+  }
+
+  // Wix CMS columns are camelCase; everything in this app reads snake_case.
+  // System fields (_id, _createdDate, ...) are kept as they are.
+  function snakeKey(k) {
+    if (k.charAt(0) === '_') return k;
+    return k.replace(/([A-Z])/g, function (m) { return '_' + m.toLowerCase(); });
+  }
+  function snakeRows(items) {
+    if (!items || !items.length) return [];
+    return items.map(function (it) {
+      var d = (it && it.data) ? it.data : (it || {});
+      var o = {};
+      for (var k in d) { if (Object.prototype.hasOwnProperty.call(d, k)) o[snakeKey(k)] = d[k]; }
+      return o;
+    });
+  }
+
+  function supplementFromMake(mr, done) {
+    var sid = mr && mr.subscriber_id;
+    var email = mr && mr.email;
+    if (!SUPPLEMENT_ENDPOINT || !sid || !email || typeof fetch !== 'function') { done(); return; }
+    showScreen('screen-loading');
+    var finished = false;
+    function finish() { if (finished) return; finished = true; done(); }
+    var ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); finish(); }, SUPPLEMENT_TIMEOUT_MS);
+    var url = SUPPLEMENT_ENDPOINT + '?subscriber_id=' + encodeURIComponent(sid) + '&email=' + encodeURIComponent(email);
+    fetch(url, { method: 'GET', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (json) {
+        if (!json || json.ok !== true) throw new Error('not ok');
+        var ai = snakeRows(json.ai && json.ai.dataItems);
+        var comp = snakeRows(json.competitor && json.competitor.dataItems);
+        // Make's copy carries answer text the page payload lacks, so prefer it
+        // whenever it is at least as complete as what the page sent.
+        var have = state.data.aiVisibilityChecks || [];
+        if (ai.length && ai.length >= have.length) state.data.aiVisibilityChecks = dedupeAiChecks(ai);
+        // competitor_social was never in the payload; an array (even empty)
+        // tells the social page the feature is wired rather than missing.
+        if (state.data.competitorSocial === undefined || state.data.competitorSocial === null || comp.length) state.data.competitorSocial = comp;
+      })
+      .catch(function (err) { console.warn('Supplement fetch skipped:', err && err.message); })
+      .then(function () { clearTimeout(timer); finish(); });
   }
 
   function setLogos() {
