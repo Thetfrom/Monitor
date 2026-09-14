@@ -131,7 +131,11 @@ function dedupeAiChecks(rows){if(!rows||!rows.length)return rows||[];var seen={}
   function supplementFromMake(mr, done) {
     var sid = mr && mr.subscriber_id;
     var email = mr && mr.email;
-    if (!SUPPLEMENT_ENDPOINT || !sid || !email || typeof fetch !== 'function') { done(); return; }
+    if (!SUPPLEMENT_ENDPOINT || !sid || typeof fetch !== 'function') { done(); return; }
+    // Deliberately still called when the payload has no email: the endpoint
+    // then answers "Accepted" after one operation, which shows up in the Make
+    // execution log as a 1-op run and tells us the page payload lacks email.
+    if (!email) console.warn('Supplement: payload masterRecord has no email; endpoint will refuse.');
     showScreen('screen-loading');
     var finished = false;
     function finish() { if (finished) return; finished = true; done(); }
