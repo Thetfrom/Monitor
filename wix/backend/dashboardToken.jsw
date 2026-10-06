@@ -1,0 +1,75 @@
+// backend/dashboardToken.jsw
+//
+// SETUP (Wix editor → Dev Mode → Backend → New .jsw file → name it dashboardToken):
+//   paste this file in. No secrets needed: it only touches the site's own CMS.
+//
+// Mints a short-lived dashboard link for the signed-in member. The link is
+//   https://thetfrom.github.io/Monitor/#t=<random token>
+// and carries nothing else. The token is a row in MonitorDashboardTokens; Make
+// scenario "Monitor Dashboard Token Exchange" looks it up, checks expiry and
+// returns the subscriber's data. Anyone who gets hold of the link after
+// TOKEN_TTL_MINUTES sees the "link expired" screen.
+//
+// This runs server-side, so a visitor cannot ask for another member's token:
+// the subscriber is resolved from currentMember, never from a parameter.
+
+import wixData from 'wix-data';
+import { currentMember } from 'wix-members-backend';
+import crypto from 'crypto';
+
+const DASHBOARD_URL = 'https://thetfrom.github.io/Monitor/';
+const TOKEN_TTL_MINUTES = 12 * 60; // a working day; refresh keeps working, next morning does not
+
+/**
+ * @returns {{ ok: true, url: string, expiresAt: string } | { ok: false, reason: 'not_signed_in' | 'no_account' }}
+ */
+export async function mintDashboardToken() {
+  let member;
+  try {
+    member = await currentMember.getMember({ fieldsets: ['FULL'] });
+  } catch (e) {
+    member = null;
+  }
+  const email = member && member.loginEmail ? String(member.loginEmail).trim().toLowerCase() : '';
+  if (!email) return { ok: false, reason: 'not_signed_in' };
+
+  // The row's email is what the Monthly engine and the read endpoint key on,
+  // so it is the only acceptable join to the member.
+  const subs = await wixData.query('MonitorSubscribers')
+    .eq('email', email)
+    .limit(1)
+    .find({ suppressAuth: true });
+  const sub = subs.items[0];
+  if (!sub || !sub.subscriberId) return { ok: false, reason: 'no_account' };
+
+  const token = crypto.randomBytes(24).toString('base64')
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); // URL-safe, 32 chars
+  const expires = new Date(Date.now() + TOKEN_TTL_MINUTES * 60 * 1000);
+
+  await wixData.insert('MonitorDashboardTokens', {
+    token,
+    subscriberId: sub.subscriberId,
+    email,
+    expiresAt: expires,
+    expiresUnix: Math.floor(expires.getTime() / 1000), // what the Make filter compares
+    revoked: false,
+  }, { suppressAuth: true });
+
+  return { ok: true, url: DASHBOARD_URL + '#t=' + token, expiresAt: expires.toISOString() };
+}
+
+/**
+ * Kills every live token for the signed-in member (e.g. a "sign out
+ * everywhere" button). Optional; nothing in the flow depends on it.
+ */
+export async function revokeMyDashboardTokens() {
+  let member;
+  try { member = await currentMember.getMember({ fieldsets: ['FULL'] }); } catch (e) { return { ok: false }; }
+  const email = member && member.loginEmail ? String(member.loginEmail).trim().toLowerCase() : '';
+  if (!email) return { ok: false };
+  const rows = await wixData.query('MonitorDashboardTokens')
+    .eq('email', email).eq('revoked', false).limit(100)
+    .find({ suppressAuth: true });
+  await Promise.all(rows.items.map(r => wixData.update('MonitorDashboardTokens', { ...r, revoked: true }, { suppressAuth: true })));
+  return { ok: true, revoked: rows.items.length };
+}
