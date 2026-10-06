@@ -109,6 +109,58 @@ now including `answer_text_kw*`) and sets `competitorSocial`. Any failure or an
 So the `#d=` payload only needs `masterRecord` (with `email`), `snapshots` and
 `social_snapshots`. `pages/MyDashboard.payload.js` is now optional history.
 
+## Token links (6 Oct 2026) — the replacement for `#d=`
+
+The `#d=` link was the subscriber's whole record, base64'd, in a URL that
+never expired: anyone holding the link could read everything without signing
+in. The replacement is a random token in the URL and nothing else:
+
+```
+https://thetfrom.github.io/Monitor/#t=<32-char random token>
+```
+
+Pieces, and where each lives:
+
+| Piece | Where | Status |
+|---|---|---|
+| `MonitorDashboardTokens` collection (`token`, `subscriberId`, `email`, `expiresAt`, `expiresUnix`, `revoked`; all permissions ADMIN) | Wix CMS | created |
+| Make scenario **7794244 "Monitor Dashboard Token Exchange"** (webhook 3848355): `GET …/a4lchbg7doexklbubxp82f1aqhdbdost?t=<token>` → looks the token up, requires `expiresUnix > now` and `revoked ≠ true`, returns `{ok, subscriber, snapshots, social, ai, competitor}` (raw Wix queries, camelCase), else 401 `{ok:false}` | Make | live |
+| `app.js`: `#t=` → `exchangeToken()`; 401/timeout → "link expired" screen; token stripped from the address bar after load | this repo | done |
+| `backend/dashboardToken.jsw`: `mintDashboardToken()` resolves the signed-in member, finds their `MonitorSubscribers` row **by email**, inserts a 12-hour token, returns the URL | **paste into the Wix site** | waiting |
+| `pages/MyDashboard.token.js`: the "Open My Dashboard" click handler that calls it | **paste into the /my-dashboard page code**, replacing the `#d=` builder | waiting |
+| `ACCEPT_LEGACY_FRAGMENT` in `app.js` | this repo | `true` until the page code is live, then flip to `false` so every old `#d=` link dies |
+
+Verified 6 Oct: a valid token runs the full 8-module path (17 KB back), a
+wrong token takes the 401 route (3 ops), no token stops after the webhook
+(1 op). The dashboard was rendered locally through the `#t=` path with the
+exchange stubbed from a real TM-2026-0047 query. The webhook cannot be
+curled from this environment (egress policy), so the end-to-end click is for
+whoever pastes the page code.
+
+Why Make and not Velo for the exchange: the dashboard is a static GitHub
+Pages site with no Wix session, so something with a server-side CMS token has
+to answer it; the read endpoint already set that pattern. Why the mint is in
+Velo and not Make: only the Wix page knows who is signed in.
+
+## Demo account (6 Oct 2026)
+
+`TM-DEMO-0001` "Ember & Oak" (Austin steakhouse, agency plan) carries six
+monthly reports (May–Oct 2026), Instagram + YouTube + TikTok + Facebook
+snapshots per report, three Instagram competitors per report and 616 daily AI
+checks across four models. Its `status` is `demo`, which both engines skip
+(they filter `status = active`), and which `app.js` shows as Active.
+
+Open it with the long-lived token row in `MonitorDashboardTokens`:
+
+```
+https://thetfrom.github.io/Monitor/#t=a8Qz3kLm7VtP2xRw9NbY5cHj4eGs6dUf
+```
+
+To make it a truly live account instead of a frozen one, set `status` to
+`active`: the AI daily will start real checks the next morning and the
+Monthly engine will run it on the 6th. The business and its handles are
+fictional, so expect the real checks to come back empty.
+
 ## The Make writer, and why it stopped
 
 Verified 12 Sep 2026. Scenario 6905973 (AI Visibility Daily) had been off since

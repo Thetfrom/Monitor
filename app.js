@@ -18,6 +18,19 @@ function dedupeAiChecks(rows){if(!rows||!rows.length)return rows||[];var seen={}
   // CORS preflight. Any failure falls back to whatever the payload carried.
   const SUPPLEMENT_ENDPOINT = 'https://hook.eu1.make.com/ysmrqbuliazwab43h1yczavtqgearmo6';
   const SUPPLEMENT_TIMEOUT_MS = 8000;
+  // Token exchange (scenario "Monitor Dashboard Token Exchange"). The Wix page
+  // mints a random, short-lived token for the signed-in member (backend/
+  // dashboardToken.jsw) and opens this app as #t=<token>. The token is the
+  // whole link: no subscriber data travels in the URL, and once the row in
+  // MonitorDashboardTokens expires the link is dead. Make looks the token up,
+  // then returns the subscriber row plus every collection the app reads.
+  const EXCHANGE_ENDPOINT = 'https://hook.eu1.make.com/a4lchbg7doexklbubxp82f1aqhdbdost';
+  const EXCHANGE_TIMEOUT_MS = 15000;
+  // Legacy #d=<base64 payload> links. Every one of those links carries the
+  // subscriber's full record and never expires, so they are only honoured
+  // while the Wix page still produces them. Flip to false once the page code
+  // opens #t= links; from then on old links land on the expired screen.
+  const ACCEPT_LEGACY_FRAGMENT = true;
 
   let state = {
     auth: null,
@@ -34,13 +47,63 @@ function dedupeAiChecks(rows){if(!rows||!rows.length)return rows||[];var seen={}
     try {
       const h = window.location.hash || '';
       if (h === '#noaccount') return 'noaccount';
+      if (h.indexOf('#t=') === 0) {
+        const token = decodeURIComponent(h.slice(3)).trim();
+        return token ? { token: token } : 'expired';
+      }
       if (h.indexOf('#d=') === 0) {
+        if (!ACCEPT_LEGACY_FRAGMENT) return 'expired';
         const json = decodeURIComponent(escape(atob(h.slice(3))));
         const payload = JSON.parse(json);
         if (payload && payload.masterRecord) return payload;
       }
     } catch (e) {}
     return null;
+  }
+
+  // #t= route: trade the token for the subscriber's data. A 401 (unknown,
+  // expired or revoked token) and any failure land on the expired screen,
+  // whose only action is to go back through the Wix member page and mint a
+  // fresh link.
+  function exchangeToken(token) {
+    showScreen('screen-loading');
+    if (!EXCHANGE_ENDPOINT || typeof fetch !== 'function') { showScreen('screen-session-expired'); return; }
+    var ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, EXCHANGE_TIMEOUT_MS);
+    fetch(EXCHANGE_ENDPOINT + '?t=' + encodeURIComponent(token), { method: 'GET', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (json) {
+        clearTimeout(timer);
+        var mr = snakeRows(json && json.subscriber && json.subscriber.dataItems)[0];
+        if (!json || json.ok !== true || !mr || !mr.subscriber_id) throw new Error('no subscriber');
+        // Demo accounts are excluded from the engines by status, but read as
+        // a normal active account on screen.
+        if (mr.status === 'demo') mr.status = 'active';
+        // Make answers with camelCase CMS rows; the app reads snake_case. The
+        // token row was already matched to this subscriber server-side, so
+        // nothing here needs the supplement call.
+        state.auth = { subscriberId: mr.subscriber_id, plan: mr.plan, status: mr.status, businessName: mr.business_name };
+        state.data = {
+          masterRecord: mr,
+          snapshots: snakeRows(json.snapshots && json.snapshots.dataItems),
+          socialSnapshots: snakeRows(json.social && json.social.dataItems),
+          aiVisibilityChecks: dedupeAiChecks(snakeRows(json.ai && json.ai.dataItems)),
+          competitorSocial: snakeRows(json.competitor && json.competitor.dataItems),
+        };
+        // Strip the token from the address bar so a copied URL or a browser
+        // history entry does not carry a live credential.
+        try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch (e) {}
+        return true;
+      })
+      .catch(function (err) {
+        clearTimeout(timer);
+        console.warn('Token exchange failed:', err && err.message);
+        showScreen('screen-session-expired');
+        return false;
+      })
+      // Rendering runs outside the catch above: a render bug must surface as
+      // a console error, not masquerade as an expired link.
+      .then(function (ok) { if (ok) onDataReady(); });
   }
 
   function boot() {
@@ -62,6 +125,8 @@ function dedupeAiChecks(rows){if(!rows||!rows.length)return rows||[];var seen={}
     // the hash; we read it directly on load. No cross-frame messaging involved.
     const urlData = readUrlData();
     if (urlData === 'noaccount') { showScreen('screen-no-account'); return; }
+    if (urlData === 'expired') { showScreen('screen-session-expired'); return; }
+    if (urlData && urlData.token) { exchangeToken(urlData.token); return; }
     if (urlData) {
       acceptPayload(urlData);
       return;
@@ -114,9 +179,14 @@ function dedupeAiChecks(rows){if(!rows||!rows.length)return rows||[];var seen={}
 
   // Wix CMS columns are camelCase; everything in this app reads snake_case.
   // System fields (_id, _createdDate, ...) are kept as they are.
+  // Digits get their own segment too (competitor1Name -> competitor_1_name,
+  // targetKeyword1 -> target_keyword_1, recommendedAction1 -> recommended_action_1)
+  // except after "kw", where the app's own names keep the digit attached
+  // (mapsRankKw1 -> maps_rank_kw1, kw1Mentioned -> kw1_mentioned).
   function snakeKey(k) {
     if (k.charAt(0) === '_') return k;
-    return k.replace(/([A-Z])/g, function (m) { return '_' + m.toLowerCase(); });
+    return k.replace(/([A-Z])/g, function (m) { return '_' + m.toLowerCase(); })
+      .replace(/(^|_)([a-z]+)(\d+)/g, function (m, p, w, d) { return w === 'kw' ? m : p + w + '_' + d; });
   }
   function snakeRows(items) {
     if (!items || !items.length) return [];
