@@ -76,6 +76,9 @@ function dedupeAiChecks(rows){if(!rows||!rows.length)return rows||[];var seen={}
         clearTimeout(timer);
         var mr = snakeRows(json && json.subscriber && json.subscriber.dataItems)[0];
         if (!json || json.ok !== true || !mr || !mr.subscriber_id) throw new Error('no subscriber');
+        // Demo accounts are excluded from the engines by status, but read as
+        // a normal active account on screen.
+        if (mr.status === 'demo') mr.status = 'active';
         // Make answers with camelCase CMS rows; the app reads snake_case. The
         // token row was already matched to this subscriber server-side, so
         // nothing here needs the supplement call.
@@ -176,9 +179,14 @@ function dedupeAiChecks(rows){if(!rows||!rows.length)return rows||[];var seen={}
 
   // Wix CMS columns are camelCase; everything in this app reads snake_case.
   // System fields (_id, _createdDate, ...) are kept as they are.
+  // Digits get their own segment too (competitor1Name -> competitor_1_name,
+  // targetKeyword1 -> target_keyword_1, recommendedAction1 -> recommended_action_1)
+  // except after "kw", where the app's own names keep the digit attached
+  // (mapsRankKw1 -> maps_rank_kw1, kw1Mentioned -> kw1_mentioned).
   function snakeKey(k) {
     if (k.charAt(0) === '_') return k;
-    return k.replace(/([A-Z])/g, function (m) { return '_' + m.toLowerCase(); });
+    return k.replace(/([A-Z])/g, function (m) { return '_' + m.toLowerCase(); })
+      .replace(/(^|_)([a-z]+)(\d+)/g, function (m, p, w, d) { return w === 'kw' ? m : p + w + '_' + d; });
   }
   function snakeRows(items) {
     if (!items || !items.length) return [];

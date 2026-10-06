@@ -142,6 +142,25 @@ Pages site with no Wix session, so something with a server-side CMS token has
 to answer it; the read endpoint already set that pattern. Why the mint is in
 Velo and not Make: only the Wix page knows who is signed in.
 
+## Demo account (6 Oct 2026)
+
+`TM-DEMO-0001` "Ember & Oak" (Austin steakhouse, agency plan) carries six
+monthly reports (May–Oct 2026), Instagram + YouTube + TikTok + Facebook
+snapshots per report, three Instagram competitors per report and 616 daily AI
+checks across four models. Its `status` is `demo`, which both engines skip
+(they filter `status = active`), and which `app.js` shows as Active.
+
+Open it with the long-lived token row in `MonitorDashboardTokens`:
+
+```
+https://thetfrom.github.io/Monitor/#t=a8Qz3kLm7VtP2xRw9NbY5cHj4eGs6dUf
+```
+
+To make it a truly live account instead of a frozen one, set `status` to
+`active`: the AI daily will start real checks the next morning and the
+Monthly engine will run it on the 6th. The business and its handles are
+fictional, so expect the real checks to come back empty.
+
 ## The Make writer, and why it stopped
 
 Verified 12 Sep 2026. Scenario 6905973 (AI Visibility Daily) had been off since
